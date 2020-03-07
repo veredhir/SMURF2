@@ -17,6 +17,8 @@ from emirge_headers import *
 from emirge_const import quals
 from emirge_utills import *
 from seqBIn import *
+import gc
+import dask
 
 # import xarray as xr
 
@@ -88,6 +90,7 @@ class EmirgePaths():
                        Base.C: os.path.join(working_dir, "prob_C.csv"),
                        Base.G: os.path.join(working_dir, "prob_G.csv"),
                        Base.T: os.path.join(working_dir, "prob_T.csv")}
+        self.tmp_dir = working_dir
         self.prev_prob_n = {}
 
 class EmirgeIteration(object):
@@ -182,6 +185,7 @@ class EmirgeIteration(object):
         else:
             full_ref_df = pd.read_csv(self.paths.full_reference, index_col=False)
             full_ref_df.to_csv(self.paths.reference, index=False)
+            del full_ref_df
 
         self._find_mapping(reads_df)
         self._find_initial_weight(update_weight_using_the_reads)
@@ -367,6 +371,11 @@ class EmirgeIteration(object):
 
     @time_it
     def _find_mapping(self, unique_reads_df, full_ref_df=None):
+        import psutil
+        process = psutil.Process(os.getpid())
+        logging.info(process.memory_info())
+        logging.info(psutil.virtual_memory())
+
         if full_ref_df is None:
             full_ref_df = pd.read_csv(self.paths.reference, index_col=False)
         ref_df_copy = full_ref_df.copy()
@@ -377,6 +386,28 @@ class EmirgeIteration(object):
 
         unique_reads_for_region_groups = unique_reads_df.groupby(HeadersFormat.Region)
         references_grouped_by_regions = full_ref_df.groupby(HeadersFormat.Region)
+
+        logging.info(process.memory_info())
+        logging.info(psutil.virtual_memory())
+
+        import io
+        buf = io.StringIO()
+        ref_df_copy.info(memory_usage='deep', buf=buf)
+        logging.info("ref_df_copy = {}".format(buf.getvalue()))
+
+        buf = io.StringIO()
+        full_ref_df.info(memory_usage='deep', buf=buf)
+        logging.info("full_ref_df = {}".format(buf.getvalue()))
+
+        buf = io.StringIO()
+        unique_reads_df.info(memory_usage='deep', buf=buf)
+        del unique_reads_df
+        logging.info("unique_reads_df = {}".format(buf.getvalue()))
+
+        rename_base_dict = {}
+        for base in Base.all:
+            rename_base_dict.update({base + '_y': base})  # keep only the reads bases
+            rename_base_dict.update({base + '_y': base})  # keep only the reads bases
 
         mapping_dfs = []
         for region, reads_df in unique_reads_for_region_groups:
@@ -409,52 +440,98 @@ class EmirgeIteration(object):
             # logging.debug("Done scoring chunks")
             # reads_and_refs_df = pd.concat(dfs, ignore_index=True)
 
+
+        # max_scores_series = reads_and_refs_df.groupby(HeadersFormat.Group_id)['Score'].transform(max)
+        # reads_and_refs_df = reads_and_refs_df[(reads_and_refs_df['Score'] == max_scores_series )]
             logging.info("Mapping for region = {}, reads size = {}, ref size = {}".format(region, len(reads_df), len(ref_df)))
 
+            logging.info(process.memory_info())
+            logging.info(psutil.virtual_memory())
             # merge using dask
 
-            tmp_ref_path_for_dd = "/tmp/tmp_ref_df.csv"
+
+            tmp_ref_path_for_dd = os.path.join(self.paths.tmp_dir, "tmp_ref_df.csv")
             ref_df.to_csv(tmp_ref_path_for_dd)
+
+            nPartitions = len(ref_df)/(100)
+            logging.info("pandas ref_df types = {}".format(ref_df.dtypes))
             del ref_df
-            tmp_reads_path_for_dd = "/tmp/tmp_ref_df.csv"
+            tmp_reads_path_for_dd = os.path.join(self.paths.tmp_dir, "tmp_reads_df.csv")
             reads_df.to_csv(tmp_reads_path_for_dd)
+            logging.info("pandas reads_df types = {}".format(reads_df.dtypes))
             del reads_df
 
             ref_dd = dd.read_csv(tmp_ref_path_for_dd)
+            ref_dd = ref_dd.repartition(npartitions=nPartitions)
+            ref_dd = ref_dd.astype({'A': np.float, 'C': np.float, 'G': np.float, 'T': np.float })
+            logging.info("dask ref_dd types = {}".format(ref_dd.dtypes))
             reads_dd = dd.read_csv(tmp_reads_path_for_dd)
+            reads_dd = reads_dd.astype({'A': np.float, 'C': np.float, 'G': np.float, 'T': np.float})
+            logging.info("dask reads_dd types = {}".format(reads_dd.dtypes))
             reads_and_refs_dd = dd.merge(ref_dd, reads_dd, on=HeadersFormat.Region)
-            del reads_dd
-            del ref_dd
+            logging.info(process.memory_info())
+            logging.info(psutil.virtual_memory())
+
+            # logging.info("dask reads_and_refs_dd.npartitions partitions = {}".format(reads_and_refs_dd.npartitions))
+            # reads_and_refs_dd = reads_and_refs_dd.repartition(npartitions=10**7)
+
+            logging.info("dask reads_and_refs_dd.npartitions partitions = {}".format(reads_and_refs_dd.npartitions))
+
+            # logging.info("blocksize = {}, nPartition = {}".format(reads_and_refs_dd.blocksize, reads_and_refs_dd.npartitions))
 
             logging.info( "Done merging")
 
-            a = np.bitwise_and(reads_and_refs_dd['A_x'].astype(np.int), reads_and_refs_dd['A_y'].astype(np.int))
-            c = np.bitwise_and(reads_and_refs_dd['C_x'].astype(np.int), reads_and_refs_dd['C_y'].astype(np.int))
-            g = np.bitwise_and(reads_and_refs_dd['G_x'].astype(np.int), reads_and_refs_dd['G_y'].astype(np.int))
-            t = np.bitwise_and(reads_and_refs_dd['T_x'].astype(np.int), reads_and_refs_dd['T_y'].astype(np.int))
+            reads_and_refs_dd['Score'] = reads_and_refs_dd.apply(lambda r: popcount(np.bitwise_or(np.bitwise_or(np.bitwise_and(int(r['A_x']), int(r['A_y'])),
+                                                                                                                np.bitwise_and(int(r['C_x']), int(r['C_y']))),
+                                                                                                  np.bitwise_or(np.bitwise_and(int(r['G_x']), int(r['G_y'])),
+                                                                                                                np.bitwise_and(int(r['T_x']), int(r['T_y']))))), meta='int64', axis=1)
 
-            logging.info("Done bitwise_and")
+            # reads_and_refs_dd['Score'] = reads_and_refs_dd['Score'].apply(lambda r: popcount(r), meta=('Score', 'int64'))
+
+            logging.info("Dask df cols = {}".format(reads_and_refs_dd.columns))
+
+            def get_high_score(df):
+                max_scores_series = df.groupby(HeadersFormat.Group_id)['Score'].transform(max)
+                return (df['Score'] == max_scores_series)
+
+            reads_and_refs_dd['is_high_score'] = reads_and_refs_dd.map_partitions(get_high_score)
+            high_score_dd = reads_and_refs_dd[reads_and_refs_dd['is_high_score']][['Score',
+                                                                                    HeadersFormat.Region,
+                                                                                   'Unique_Reference_id',
+                                                                                   'Reads_group_id',
+                                                                                   'Count']]
 
 
+            logging.info("Done filtering")
 
-            reads_and_refs_dd['Score'] = np.bitwise_or(np.bitwise_or(a, c).astype(np.int), np.bitwise_or(g, t).astype(np.int))
-            reads_and_refs_dd['Score'] = reads_and_refs_dd['Score'].apply(lambda r: popcount(r))
+            logging.info("dask high_score_dd types = {}".format(high_score_dd.dtypes))
 
-            reads_and_refs_dd = reads_and_refs_dd[reads_and_refs_dd['Score'].astype(np.int) >=
-                                                              (reads_and_refs_dd.groupby(HeadersFormat.Group_id)['Score'].astype(np.int).transform(max)- 2)]
+            logging.info(process.memory_info())
+            logging.info(psutil.virtual_memory())
 
-            reads_and_refs_df = reads_and_refs_dd.compute()
+            logging.info("dask high_score_dd.npartitions partitions = {}".format(high_score_dd.npartitions))
+
+            reads_and_refs_df = dask.compute(high_score_dd)
+            logging.info("Done dask")
             del reads_and_refs_dd
+            del high_score_dd
+            logging.info("Done del dask")
+
+
+
+            # futs = reads_and_refs_dd.to_csv(os.path.join(self.paths.tmp_dir, "tmp_reads_and_refs_dd*.csv"), compute=False)
+            # _, l = dask.compute(futs, reads_and_refs_dd.size)
+            # logging.info("Save to tmp")
+            # logging.info("read from tmp")
+            # reads_and_refs_df = reads_and_refs_dd.compute()
+            # del reads_and_refs_dd
 
             logging.info("Done dask")
 
-            max_scores_series = reads_and_refs_df.groupby(HeadersFormat.Group_id)['Score'].transform(max)
-            reads_and_refs_df = reads_and_refs_df[(reads_and_refs_df['Score'] == max_scores_series )]
-
             rename_base_dict = {}
             for base in Base.all:
-                rename_base_dict.update({base + '_y': base}) # keep only the reads bases
-                rename_base_dict.update({base + '_y': base}) # keep only the reads bases
+                rename_base_dict.update({base + '_y': base})  # keep only the reads bases
+                rename_base_dict.update({base + '_y': base})  # keep only the reads bases
 
             reads_and_refs_df.rename(columns=rename_base_dict, inplace=True)
             reads_and_refs_df[MappingForamt.Mapp_weight] = 0
