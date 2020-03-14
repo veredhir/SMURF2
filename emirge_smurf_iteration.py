@@ -17,7 +17,11 @@ from emirge_headers import *
 from emirge_const import quals
 from emirge_utills import *
 from seqBIn import *
+import multiprocessing
+from multiprocessing import  Pool
+import itertools
 import gc
+import dask
 import dask
 
 # import xarray as xr
@@ -368,7 +372,6 @@ class EmirgeIteration(object):
                                    how='right')
         ref_with_weight.to_csv(self.paths.reference, index=False)
 
-
     @time_it
     def _find_mapping(self, unique_reads_df, full_ref_df=None):
         import psutil
@@ -401,7 +404,6 @@ class EmirgeIteration(object):
 
         buf = io.StringIO()
         unique_reads_df.info(memory_usage='deep', buf=buf)
-        del unique_reads_df
         logging.info("unique_reads_df = {}".format(buf.getvalue()))
 
         rename_base_dict = {}
@@ -418,115 +420,35 @@ class EmirgeIteration(object):
                 logging.warn("Skip region {}, no reference match to the region.".format(region))
                 continue
             ref_df.reset_index(inplace=True)
+
+            ref_df_unique = ref_df.drop_duplicates(Base.all)
+
+            logging.info("before = {} after= {}".format(len(ref_df), len(ref_df_unique)))
+
+            ref_df_size = ref_df_unique.memory_usage(index=True).sum()
+            row_size_ref_df = ref_df_size/len(ref_df_unique)
+            reads_df_size = reads_df.memory_usage(index=True).sum()
+            row_size_reads_df = reads_df_size / len(reads_df)
+            merged_row_size = row_size_reads_df + row_size_ref_df
+
+            merge_size = merged_row_size*len(reads_df)*len(ref_df_unique)
+            free_memory = 0.8*psutil.virtual_memory().free
+
+            amount_of_cpus = multiprocessing.cpu_count()
+            nChunks = 10*int(merge_size/free_memory + 1)
+
+            logging.info("Mapping for region = {}, reads size = {}, ref size = {},  amount of chunks = {}, cores={}, free memory = {}"
+                         .format(region, len(reads_df), len(ref_df_unique), nChunks, amount_of_cpus, free_memory))
+
             # Find the number of matches between each read - ref couple:
-
-            # without memory optimization using dask framework:
-            # dfs = []
-            # chunk_size = 1000
-            # logging.info("Mapping for region = {}, reads size = {}, amount of chunks = {}".format(region, len(reads_df), len(ref_df)/chunk_size))
-            # chunks = int(len(ref_df)/chunk_size) + 1
-            # for chunk in np.array_split(ref_df, chunks):
-            #     reads_and_refs_chunk_df = pd.DataFrame.merge(chunk, reads_df, on=HeadersFormat.Region)
-            #     a = np.bitwise_and(reads_and_refs_chunk_df['A_x'], reads_and_refs_chunk_df['A_y'])
-            #     c = np.bitwise_and(reads_and_refs_chunk_df['C_x'], reads_and_refs_chunk_df['C_y'])
-            #     g = np.bitwise_and(reads_and_refs_chunk_df['G_x'], reads_and_refs_chunk_df['G_y'])
-            #     t = np.bitwise_and(reads_and_refs_chunk_df['T_x'], reads_and_refs_chunk_df['T_y'])
-            #     reads_and_refs_chunk_df['Score'] = np.bitwise_or(np.bitwise_or(a, c), np.bitwise_or(g, t))
-            #     reads_and_refs_chunk_df['Score'] = reads_and_refs_chunk_df['Score'].apply(lambda r: popcount(r))
-            #
-            #     reads_and_refs_chunk_df = reads_and_refs_chunk_df[reads_and_refs_chunk_df['Score'] >=
-            #                                                       (reads_and_refs_chunk_df.groupby(HeadersFormat.Group_id)['Score'].transform(max)- 2)]
-            #     dfs.append(reads_and_refs_chunk_df)
-            # logging.debug("Done scoring chunks")
-            # reads_and_refs_df = pd.concat(dfs, ignore_index=True)
-
-
-        # max_scores_series = reads_and_refs_df.groupby(HeadersFormat.Group_id)['Score'].transform(max)
-        # reads_and_refs_df = reads_and_refs_df[(reads_and_refs_df['Score'] == max_scores_series )]
-            logging.info("Mapping for region = {}, reads size = {}, ref size = {}".format(region, len(reads_df), len(ref_df)))
-
-            logging.info(process.memory_info())
-            logging.info(psutil.virtual_memory())
-            # merge using dask
-
-
-            tmp_ref_path_for_dd = os.path.join(self.paths.tmp_dir, "tmp_ref_df.csv")
-            ref_df.to_csv(tmp_ref_path_for_dd)
-
-            nPartitions = len(ref_df)/(100)
-            logging.info("pandas ref_df types = {}".format(ref_df.dtypes))
-            del ref_df
-            tmp_reads_path_for_dd = os.path.join(self.paths.tmp_dir, "tmp_reads_df.csv")
-            reads_df.to_csv(tmp_reads_path_for_dd)
-            logging.info("pandas reads_df types = {}".format(reads_df.dtypes))
-            del reads_df
-
-            ref_dd = dd.read_csv(tmp_ref_path_for_dd)
-            ref_dd = ref_dd.repartition(npartitions=nPartitions)
-            ref_dd = ref_dd.astype({'A': np.float, 'C': np.float, 'G': np.float, 'T': np.float })
-            logging.info("dask ref_dd types = {}".format(ref_dd.dtypes))
-            reads_dd = dd.read_csv(tmp_reads_path_for_dd)
-            reads_dd = reads_dd.astype({'A': np.float, 'C': np.float, 'G': np.float, 'T': np.float})
-            logging.info("dask reads_dd types = {}".format(reads_dd.dtypes))
-            reads_and_refs_dd = dd.merge(ref_dd, reads_dd, on=HeadersFormat.Region)
-            logging.info(process.memory_info())
-            logging.info(psutil.virtual_memory())
-
-            # logging.info("dask reads_and_refs_dd.npartitions partitions = {}".format(reads_and_refs_dd.npartitions))
-            # reads_and_refs_dd = reads_and_refs_dd.repartition(npartitions=10**7)
-
-            logging.info("dask reads_and_refs_dd.npartitions partitions = {}".format(reads_and_refs_dd.npartitions))
-
-            # logging.info("blocksize = {}, nPartition = {}".format(reads_and_refs_dd.blocksize, reads_and_refs_dd.npartitions))
-
-            logging.info( "Done merging")
-
-            reads_and_refs_dd['Score'] = reads_and_refs_dd.apply(lambda r: popcount(np.bitwise_or(np.bitwise_or(np.bitwise_and(int(r['A_x']), int(r['A_y'])),
-                                                                                                                np.bitwise_and(int(r['C_x']), int(r['C_y']))),
-                                                                                                  np.bitwise_or(np.bitwise_and(int(r['G_x']), int(r['G_y'])),
-                                                                                                                np.bitwise_and(int(r['T_x']), int(r['T_y']))))), meta='int64', axis=1)
-
-            # reads_and_refs_dd['Score'] = reads_and_refs_dd['Score'].apply(lambda r: popcount(r), meta=('Score', 'int64'))
-
-            logging.info("Dask df cols = {}".format(reads_and_refs_dd.columns))
-
-            def get_high_score(df):
-                max_scores_series = df.groupby(HeadersFormat.Group_id)['Score'].transform(max)
-                return (df['Score'] == max_scores_series)
-
-            reads_and_refs_dd['is_high_score'] = reads_and_refs_dd.map_partitions(get_high_score)
-            high_score_dd = reads_and_refs_dd[reads_and_refs_dd['is_high_score']][['Score',
-                                                                                    HeadersFormat.Region,
-                                                                                   'Unique_Reference_id',
-                                                                                   'Reads_group_id',
-                                                                                   'Count']]
-
+            reads_and_refs_df = parallelize_dataframe(reads_df, ref_df_unique, 2*self.read_len, _map_single_chunk_parallelize, nChunks)
 
             logging.info("Done filtering")
-
-            logging.info("dask high_score_dd types = {}".format(high_score_dd.dtypes))
-
-            logging.info(process.memory_info())
-            logging.info(psutil.virtual_memory())
-
-            logging.info("dask high_score_dd.npartitions partitions = {}".format(high_score_dd.npartitions))
-
-            reads_and_refs_df = dask.compute(high_score_dd)
-            logging.info("Done dask")
-            del reads_and_refs_dd
-            del high_score_dd
-            logging.info("Done del dask")
-
-
-
-            # futs = reads_and_refs_dd.to_csv(os.path.join(self.paths.tmp_dir, "tmp_reads_and_refs_dd*.csv"), compute=False)
-            # _, l = dask.compute(futs, reads_and_refs_dd.size)
-            # logging.info("Save to tmp")
-            # logging.info("read from tmp")
-            # reads_and_refs_df = reads_and_refs_dd.compute()
-            # del reads_and_refs_dd
-
-            logging.info("Done dask")
+            cols = reads_and_refs_df.columns
+            # take the unique_reference_id from the ref_id dataframe
+            reads_and_refs_df = reads_and_refs_df.merge(ref_df, left_on=['A_x', 'C_x', 'G_x', 'T_x'], right_on=['A', 'C', 'G', 'T'], suffixes=('_tmp', ''))
+            reads_and_refs_df = reads_and_refs_df[cols]
+            logging.info("Done Merge after filtering")
 
             rename_base_dict = {}
             for base in Base.all:
@@ -795,6 +717,8 @@ class EmirgeIteration(object):
 
         prob_n_full_dict = {Base.A: [], Base.C: [], Base.G: [], Base.T: []}
         mapping_grouped_by_ref = mapping_df.groupby(CurrentStateFormat.Reference_id)
+
+        logging.info("calc_prob_N: amount of reference groups: {}".format(len(mapping_grouped_by_ref)))
 
         for ref_group_id, mapping_ref_df in mapping_grouped_by_ref:
             mapping_ref_df = mapping_ref_df.reset_index()
@@ -1727,6 +1651,43 @@ def get_similar_references_and_region(similar_sequences):
                          drop_duplicates().
                          rename(columns={CurrentStateFormat.Reference_id + "_y": CurrentStateFormat.Reference_id})])
     return ref_list
+
+
+def _map_single_chunk_parallelize((reads_df, ref_df , nBits)):
+    reads_and_refs_chunk_df = pd.DataFrame.merge(ref_df, reads_df, on=HeadersFormat.Region)
+    a = np.bitwise_and(reads_and_refs_chunk_df['A_x'], reads_and_refs_chunk_df['A_y'])
+    c = np.bitwise_and(reads_and_refs_chunk_df['C_x'], reads_and_refs_chunk_df['C_y'])
+    g = np.bitwise_and(reads_and_refs_chunk_df['G_x'], reads_and_refs_chunk_df['G_y'])
+    t = np.bitwise_and(reads_and_refs_chunk_df['T_x'], reads_and_refs_chunk_df['T_y'])
+    reads_and_refs_chunk_df['Score_bit'] = np.bitwise_or(np.bitwise_or(a, c), np.bitwise_or(g, t))
+    reads_and_refs_chunk_df['Score'] = 0
+
+    for iBit in range(0, nBits + 8, 8):
+        reads_and_refs_chunk_df['Score_8lsb'] =  reads_and_refs_chunk_df['Score_bit'] % (2**8)
+        reads_and_refs_chunk_df['Score'] = reads_and_refs_chunk_df['Score'] + np.unpackbits([reads_and_refs_chunk_df['Score_8lsb'].astype('uint8')], axis=0).sum(axis=0)
+        reads_and_refs_chunk_df['Score_bit'] = np.right_shift(reads_and_refs_chunk_df['Score_bit'], 8)
+
+        ## filter to save time
+        if( (iBit % 16) == 0):
+            reads_and_refs_chunk_df['tmp_Score'] = reads_and_refs_chunk_df['Score'].copy()
+
+            reads_and_refs_chunk_df = reads_and_refs_chunk_df[reads_and_refs_chunk_df['tmp_Score'] >=
+                                                              (reads_and_refs_chunk_df.groupby(HeadersFormat.Group_id)[
+                                                                   'tmp_Score'].transform(max) - 5)]
+
+    reads_and_refs_chunk_df = reads_and_refs_chunk_df[reads_and_refs_chunk_df['Score'] >=
+                                                      (reads_and_refs_chunk_df.groupby(HeadersFormat.Group_id)[
+                                                           'Score'].transform(max) - 2)]
+    logging.info("TEST WITHOUT APPLY AFTER FILTERING! size = {} --> reads ids = {}".format(len(reads_and_refs_chunk_df), len(reads_df)))
+    return reads_and_refs_chunk_df
+
+def parallelize_dataframe(df_to_split, df, nBits, func, nChunks, n_cores=multiprocessing.cpu_count()):
+    df_split = np.array_split(df_to_split, n_cores*nChunks)
+    pool = Pool(n_cores)
+    df = pd.concat(pool.map(func, itertools.izip(df_split, itertools.repeat(df), itertools.repeat(nBits))))
+    pool.close()
+    pool.join()
+    return df
 
 
 def get_emirge_iteration_mock():
