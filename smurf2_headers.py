@@ -6,7 +6,7 @@ class HeadersFormat:
     Quals = 'Quals'
     Count = 'Count'
     Read_id = 'Read_id'
-    Weight = 'Weight'
+    Weight = '#_of_amplified_references-Weight'
     Priors = 'Priors'
     ProbN = 'ProbN'
     Reference_id = 'Reference_id'

@@ -1,8 +1,8 @@
 
 from Bio import SeqIO
 import numpy as np
-from emirge_headers import *
-from emirge_utills import *
+from smurf2_headers import *
+from smurf2_utills import *
 import os
 import seaborn as sns
 import scipy.io as sio
@@ -135,7 +135,7 @@ def read_db_ind_map(path_to_db_ind="/home/vered/EMIRGE/data/reference_db/Header_
 
 def convert_format(mat_path, fasta_dir, output_dir, read_length=126, num_regions=5):
     """
-    :param path: path to 'final_results.csv produced by emirge_smurf.py
+    :param path: path to 'final_results.csv produced by smurf2.py
     :return: df hold the final results
     """
     matstruct_contents = sio.loadmat(mat_path)

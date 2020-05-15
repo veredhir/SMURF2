@@ -1,8 +1,8 @@
 
 
 import numpy as np
-from emirge_headers import *
-from emirge_utills import *
+from smurf2_headers import *
+from smurf2_utills import *
 import os
 import seaborn as sns
 
@@ -54,7 +54,7 @@ def validate_priors(df, threshold=VALIDATION_THRESHOLD_THRESHOLD):
 
 def get_test_df(path, is_smurf2):
     """
-    :param path: path to 'final_results.csv produced by emirge_smurf.py
+    :param path: path to 'final_results.csv produced by smurf2.py
     :return: df hold the final results
     """
     df = pd.DataFrame.from_csv(path, index_col=None)

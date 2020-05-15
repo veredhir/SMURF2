@@ -10,7 +10,7 @@ from random import randint
 import shutil
 # from random import shuffle
 
-from emirge_utills import *
+from smurf2_utills import *
 
 
 class FrequencyDistribution(object):

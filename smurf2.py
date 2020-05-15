@@ -51,8 +51,8 @@ import os
 import shutil
 from optparse import OptionParser, OptionGroup, SUPPRESS_HELP
 from time import ctime, time
-from emirge_smurf_iteration import EmirgeIteration
-from emirge_utills import *
+from smurf2_iteration import Smurf2Iteration
+from smurf2_utills import *
 
 
 class EM(object):
@@ -87,13 +87,13 @@ class EM(object):
 
         os.mkdir(first_subdir)
 
-        curr_emirge_iteration = EmirgeIteration(first_subdir,
+        curr_emirge_iteration = Smurf2Iteration(first_subdir,
                                                 fastq_path=fastq,
                                                 reversed_fastq_path=fastq_reversed,
                                                 fasta_path=fasta,
                                                 primers_path=primers_path,
                                                 read_len=read_length,
-                                                number_of_regions=number_of_region,
+                                                n_regions=number_of_region,
                                                 update_weight_using_the_reads=update_weight_using_the_reads,
                                                 max_changed_bases_rate_for_split=max_changed_bases_rate_for_split,
                                                 min_coverage_for_split=min_coverage_for_split,
@@ -108,8 +108,9 @@ class EM(object):
         for i in range(1, max_iter):
             subdirs.append(os.path.join(self.working_dir, "iter.%02d" % i))
             os.mkdir(subdirs[i])
+            logging.info("Create iteration {} working dir = {}".format(subdirs[i]))
             prev_iteration = curr_emirge_iteration
-            curr_emirge_iteration = EmirgeIteration(subdirs[i], prev_emirge_iteration=prev_iteration)
+            curr_emirge_iteration = Smurf2Iteration(subdirs[i], prev_smurf2_iteration=prev_iteration)
 
             # we only need the first iteration and the current one.
             # once we used the previous iteration to initialize the current one, we don't need the data any more.
@@ -176,7 +177,7 @@ def main(argv = sys.argv[1:]):
                                      "See also split_threshold. (default: %default)")
     group_thresholds.add_option("-t", "--split_threshold",
                                 type="float", default="0.05",
-                                help="limit the amount of bases change in one split to this threshold, the splitted "
+                                help="limit the amount of bases change in one split to this threshold, the split"
                                      "sequence can't be too different from the original sequence (default: %default; valid range: [0.0, 1.0] ) ")
     group_thresholds.add_option("-j", "--join_threshold",
                                 type="float", default="0.999",
@@ -267,7 +268,7 @@ def main(argv = sys.argv[1:]):
         if current_o_value is not None:
             setattr(options, o, os.path.abspath(current_o_value))
 
-    emirge_log_name = os.path.join(working_dir, "sumrf2.log")
+    emirge_log_name = os.path.join(working_dir, "smurf2.log")
 
     if options.debug is True:
         define_logger(logging.DEBUG, emirge_log_name)

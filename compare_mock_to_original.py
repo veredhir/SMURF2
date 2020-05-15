@@ -9,7 +9,7 @@ import pandas as pd
 from random import randint
 import shutil
 
-from emirge_utills import *
+from smurf2_utills import *
 
 
 class Base(object):

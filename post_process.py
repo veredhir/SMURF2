@@ -1,8 +1,8 @@
 
 from Bio import SeqIO
 import numpy as np
-from emirge_headers import *
-from emirge_utills import *
+from smurf2_headers import *
+from smurf2_utills import *
 import os
 import seaborn as sns
 # import mat4py
@@ -17,7 +17,7 @@ import pandas as pd
 from optparse import OptionParser, OptionGroup
 import glob
 import sys
-from oct2py import octave as oc
+# from oct2py import octave as oc
 
 SIMILAR = 'similar'
 CONTAIN = 'contain'
@@ -180,9 +180,10 @@ def to_smurf_format(df, overall_reads, num_regions, mat_dest):
     found_bacteria.assigned_reads = [overall_reads*reads/norm_factor for reads in assigned_reads_frac]
     data = {'found_bacteria': found_bacteria.get(), 'bactMetaGroups':bacteriaMetaGroups.get()}
     sio.savemat(mat_dest, data)
-
-    oc.unpackStruct(mat_dest)
-    oc.save(mat_dest)
+    print("save mat to {}".format(mat_dest))
+    #
+    # oc.unpackStruct(mat_dest)
+    # oc.save(mat_dest)
 
 
 
@@ -198,7 +199,7 @@ def are_similar(seq1, db_seq):
     if 'N' in seq2:
         N_pos = [pos for pos, char in enumerate(seq2) if char == 'N']
         for pos in N_pos:
-            seq1[pos] = 'N'
+            seq1 = seq1[0:pos] + 'N' + seq1[pos + 1:]
         if seq2 == seq1:
             return True
     return False
@@ -217,85 +218,10 @@ def count_changes(seq1, db_seq):
     return counter
 
 
-def add_taxa_to_results(path, fasta_dir, output_dir, sample_name, overall_reads, taxa_and_head, num_regions=5):
-    """
-    :param path: path to 'final_results.csv produced by emirge_smurf.py
-    :return: df hold the final results
-    """
-    df = pd.read_csv(path, index_col=False)
-    df = df.rename(columns = {'Sequence': Header.sequence,
-                              HeadersFormat.Region: Header.region,
-                              HeadersFormat.Priors: Header.prior,
-                              'Unique_Reference_id': Header.ref_id})
-    df['Header'] = df[Header.ref_id].apply(lambda r: round(r, 2))
-    new_id_ix=1
-
-    regions = df[Header.region].unique()
-    for region in regions:
-        df[region] = (df[Header.region] == region) * df[Header.sequence]
-
-    full_df = df.drop_duplicates([Header.ref_id, Header.region])
-    full_df.loc[:, Header.is_changed] = False
-    full_df.loc[:, Header.new_id] = 0
-    full_df.loc[:, "Header"] = ''
-    changes_per_region_tamplate = "changes_r{}"
-    for i in range(1, num_regions+1):
-        full_df.loc[:, changes_per_region_tamplate.format(i)] = 0
-
-    fasta_files = get_fasta_files(fasta_dir, num_regions)
-    for fasta_file in fasta_files:
-        records = SeqIO.index(fasta_file.path, "fasta")
-        curr_region = fasta_file.region
-        changes_per_region_header = changes_per_region_tamplate.format(curr_region)
-        for index, row in full_df.iterrows():
-            if row[int(curr_region)]=='' or curr_region not in row.index:
-                continue
-            id = row['Reference_id']
-            if float(id)-int(id) == 0:
-                id = str(int(id))
-            try:
-                seq = records[id].seq
-                db_seq = seq.__str__()
-            except Exception as ex:
-                print("ex = {}, id={}, region = {}, prior={}".format(ex, id, curr_region, row[Header.prior]))
-                db_seq = ''
-            full_df.loc[index, "Header"] = id
-            curr_seq = row[curr_region]
-
-            if not are_similar(curr_seq, db_seq):
-                full_df.loc[index, Header.is_changed] = True
-                full_df.loc[index, Header.new_id] = new_id_ix
-                full_df.loc[index, changes_per_region_header] = count_changes(curr_seq, db_seq)
-                new_id_ix+=1
-        records.close()
-
-
-    validate_priors(df)
-
-    full_df.to_csv(os.path.join(output_dir, "tmp_full_df.csv"))
-    taxa_df = pd.read_csv(taxa_and_head, sep='	 ', index_col=False)
-    rename_dict = {'Domain': 'domain',
-                   'Phylum ': 'phylum',
-                   'Class ': 'class',
-                   'Order ': 'order',
-                   'Family ': 'family',
-                   'Genus ': 'genus',
-                   'Species': 'species'}
-    taxa_df = taxa_df.rename(rename_dict)
-
-
-    write_new_bacterium_to_fasta(full_df[full_df[Header.is_changed] == True], num_regions, output_dir)
-
-    df = df.merge(full_df[[Header.is_changed, Header.ref_id, Header.new_id]], on=Header.ref_id)
-    results_path = os.path.join(output_dir, "sample_" + sample_name + "_results.mat")
-    to_smurf_format(df, overall_reads, num_regions, results_path)
-
-    return df
-
-def convert_format(path, fasta_dir, output_dir, sample_name, overall_reads, num_regions=5):
+def convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads, num_regions=5):
     """
     smurf2 to smurf format
-    :param path: path to 'final_results.csv produced by emirge_smurf.py
+    :param path: path to 'final_results.csv produced by smurf2.py
     :return: df hold the final results
     """
     df = pd.read_csv(path, index_col=False)
@@ -319,7 +245,7 @@ def convert_format(path, fasta_dir, output_dir, sample_name, overall_reads, num_
         records = SeqIO.index(fasta_file.path, "fasta")
         curr_region = fasta_file.region
         for index, row in full_df.iterrows():
-            if row[int(curr_region)]=='' or curr_region not in row.index:
+            if curr_region not in row.index or row[int(curr_region)]=='':
                 continue
             id = row['Reference_id']
             if float(id)-int(id) == 0:
@@ -405,9 +331,9 @@ def main(argv = sys.argv[1:]):
     group_reqd.add_option("-l", "--overall_reads",
                       type="int",
                       help="""overall mapped reads""")
-    group_reqd.add_option("-t", "--taxa_path",
-                          type="string",
-                          help="taxt_and_head file path")
+    # group_reqd.add_option("-t", "--taxa_path",
+    #                       type="string",
+    #                       help="taxa_and_head file path")
 
     parser.add_option_group(group_reqd)
     (options, args) = parser.parse_args(argv)
@@ -417,11 +343,8 @@ def main(argv = sys.argv[1:]):
     output_dir=options.output
     sample_name=options.sample_name
     overall_reads=options.overall_reads
-    taxa_and_head=options.taxa_path
 
-    add_taxa_to_results(path, fasta_dir, output_dir, sample_name, overall_reads, taxa_and_head)
-
-    convert_format(path, fasta_dir, output_dir, sample_name, overall_reads)
+    convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads)
 
 
 

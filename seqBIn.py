@@ -20,7 +20,10 @@ class Base(object):
 
 def sequence_to_bin(seq):
     """
-    :param seq: sequence
+    Convert string of bases ('A', 'C', 'G', 'T', 'N') to binary format.
+
+    :param seq: string
+                sequence of bases ('A', 'C', 'G', 'T', 'N')
     :return: list of 4 strings of the binary presentation of each base.
     for example: the sequence 'AC'
                  the return value: ['2', '1', '0', '0']
