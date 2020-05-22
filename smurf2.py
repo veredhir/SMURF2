@@ -1,5 +1,9 @@
 #!/usr/bin/env python2
 """
+SMURF2: Short MUltiple Regions Framework for Reconstruction of Genes from the Environment using
+Expectation-Maximization Iterative method.
+
+Some of the code is based on EMIRGE:
 EMIRGE: Expectation-Maximization Iterative Reconstruction of Genes from the Environment
 Copyright (C) 2010-2016 Christopher S. Miller  (christopher.s.miller@ucdenver.edu)
 
@@ -17,10 +21,8 @@ Copyright (C) 2010-2016 Christopher S. Miller  (christopher.s.miller@ucdenver.ed
     along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 https://github.com/csmiller/EMIRGE
-
-for help, type:
-python emirge_amplicon.py --help
 """
+
 USAGE = \
 """usage: %prog DIR <required_parameters> [options]
 
@@ -30,11 +32,6 @@ reads at a time.
 DIR is the working directory to process data in.
 Use --help to see a list of required and optional arguments
 
-Additional information:
-https://groups.google.com/group/emirge-users
-https://github.com/csmiller/EMIRGE/wiki
-
-If you use EMIRGE in your work, please cite these manuscripts, as appropriate.
 
 Miller CS, Baker BJ, Thomas BC, Singer SW, Banfield JF (2011)
 EMIRGE: reconstruction of full-length ribosomal genes from microbial community short read sequencing data.
@@ -259,8 +256,7 @@ def main(argv = sys.argv[1:]):
         if len(os.listdir(working_dir)) > 1:   # allow 1 file in case log file is redirected here.
             print >> sys.stderr, os.listdir(working_dir)
             parser.error("Directory not empty: %s\nIt is recommended you run emirge in a new directory each run; "
-                         "delete this directory or specifiy a new one." % working_dir)
-
+                         "delete this directory or specify a new one." % working_dir)
 
     # clean up options to be absolute paths
     for o in ["fastq_reads_1", "fastq_reads_2", "fasta_db"]:

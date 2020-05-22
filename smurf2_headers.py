@@ -14,7 +14,7 @@ class HeadersFormat:
     Unique_Ref_id = 'Unique_Reference_id'
     Likelihood = 'Likelihood'
     Posterior = 'Posterior'
-    Mapp_weight = 'Mapp_weight'
+    Map_weight = 'Map_weight'
 
 
 class UnqiueRefToRefFormat:
@@ -96,8 +96,8 @@ class MappingForamt(object):
     Bases = Base()
     Count = HeadersFormat.Count
     Ref_id = HeadersFormat.Unique_Ref_id
-    Mapp_weight = HeadersFormat.Mapp_weight
-    full_header = [Group_id, Region, Count, Ref_id, Mapp_weight] + Bases.all
+    Map_weight = HeadersFormat.Map_weight
+    full_header = [Group_id, Region, Count, Ref_id, Map_weight] + Bases.all
 
 
 # each reference sequence state
