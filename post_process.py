@@ -131,7 +131,7 @@ class BacteriaMetaGroup():
 
 
 
-def read_db_ind_map(path_to_db_ind="/home/vered/EMIRGE/data/reference_db/Header_uni_forVered.csv"):
+def read_db_ind_map(path_to_db_ind):
     db_map = pd.read_csv(path_to_db_ind, index_col=None, header=None)
     db_map['fasta_id'] = db_map[0].apply(lambda x: str(int(x)))
     db_map['index'] = range(1, len(db_map)+1)
@@ -150,7 +150,7 @@ def fasta_id_to_indices(fasta_ids, db_map):
     return []
 
 
-def to_smurf_format(df, overall_reads, num_regions, mat_dest):
+def to_smurf_format(df, overall_reads, num_regions, mat_dest, taxa_path):
     """
     found_bacteria: frequency, assigned_reads
     bateriaMetaGroups: db_ind, comb_vec, new_ind, is_out_of_db
@@ -159,7 +159,7 @@ def to_smurf_format(df, overall_reads, num_regions, mat_dest):
     bacteriaMetaGroups=BacteriaMetaGroup()
     found_bacteria=Found_bacteria()
     assigned_reads_frac = []
-    db_map = read_db_ind_map()
+    db_map = read_db_ind_map(taxa_path)
 
     ref_groups = df.groupby(Header.ref_id)
     for ref_id, ref_df in ref_groups:
@@ -184,11 +184,6 @@ def to_smurf_format(df, overall_reads, num_regions, mat_dest):
     #
     # oc.unpackStruct(mat_dest)
     # oc.save(mat_dest)
-
-
-
-
-
 
 
 def are_similar(seq1, db_seq):
@@ -218,9 +213,10 @@ def count_changes(seq1, db_seq):
     return counter
 
 
-def convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads, num_regions=5):
+def convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads, num_regions, taxa_path):
     """
     smurf2 to smurf format
+    :param output_dir:
     :param path: path to 'final_results.csv produced by smurf2.py
     :return: df hold the final results
     """
@@ -248,7 +244,7 @@ def convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_re
             if curr_region not in row.index or row[int(curr_region)]=='':
                 continue
             id = row['Reference_id']
-            if float(id)-int(id) == 0:
+            if float(id)-int(id) != 0:
                 id = str(int(id))
             try:
                 seq = records[id].seq
@@ -268,10 +264,9 @@ def convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_re
 
     df = df.merge(full_df[[Header.is_changed, Header.ref_id, Header.new_id]], on=Header.ref_id)
     results_path = os.path.join(output_dir, "sample_" + sample_name + "_results.mat")
-    to_smurf_format(df, overall_reads, num_regions, results_path)
+    to_smurf_format(df, overall_reads, num_regions, results_path, taxa_path)
 
-
-    return df
+    return results_path
 
 
 class FastaFile(object):
@@ -331,9 +326,9 @@ def main(argv = sys.argv[1:]):
     group_reqd.add_option("-l", "--overall_reads",
                       type="int",
                       help="""overall mapped reads""")
-    # group_reqd.add_option("-t", "--taxa_path",
-    #                       type="string",
-    #                       help="taxa_and_head file path")
+    group_reqd.add_option("-t", "--taxa_path",
+                          type="string", default="/home/vered/EMIRGE/data/reference_db/Header_uni_forVered.csv",
+                          help="taxa_and_head file path")
 
     parser.add_option_group(group_reqd)
     (options, args) = parser.parse_args(argv)
@@ -344,7 +339,7 @@ def main(argv = sys.argv[1:]):
     sample_name=options.sample_name
     overall_reads=options.overall_reads
 
-    convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads)
+    convert_to_smurf_format(path, fasta_dir, output_dir, sample_name, overall_reads, 5, options.taxa_path)
 
 
 

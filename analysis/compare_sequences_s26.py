@@ -14,13 +14,15 @@ primers_path = ""
 
 s26_results_path = "/home/vered/EMIRGE/data/s26_mock/ssrRNAs/"
 primers_path = "/home/vered/EMIRGE/data/primers.csv"
+GG_database_path = "/home/vered/EMIRGE/data/reference_db"
 
 s26_smurf2_results_dir = "/home/vered/EMIRGE/data/s26_mock/"
-s26_smurf2_results1_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Pseudomonas_aeruginosa"
-s26_smurf2_results2_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Listeria_monocytogenes"
+s26_smurf2_results_dada2_dir = "/home/vered/EMIRGE/data/s26_mock/dada2"
+s26_smurf2_results1_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Pseudomonas_aeruginosa/"
+s26_smurf2_results2_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Listeria_monocytogenes/"
 s26_smurf2_results3_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Lactobacillus_fermentum/"
 
-s26_smurf2_dir_list = [s26_smurf2_results_dir, s26_smurf2_results1_dir, s26_smurf2_results2_dir, s26_smurf2_results3_dir]
+s26_smurf2_dir_list = [s26_smurf2_results_dir, s26_smurf2_results_dada2_dir, s26_smurf2_results1_dir, s26_smurf2_results2_dir, s26_smurf2_results3_dir]
 
 # s26_smurf2_results = os.path.join(s26_smurf2_results_dir, "SMURF2_results.csv")
 
@@ -232,6 +234,24 @@ def find_distance_between_results(matches_df, zemo_df, smurf2_df):
     return pd.DataFrame.from_dict(diff_results)
 
 
+def get_distance_form_GG_single(db_index, sequence, db_id, read_len=145):
+    if db_id - int(db_id) == 0:
+        db_id = int(db_id)
+    db_seq = db_index[str(db_id)].seq.__str__()[:read_len]
+    smurf2_seq = "".join(sequence[:read_len])
+    alignments = pairwise2.align.globalxx(db_seq, smurf2_seq)
+    curr_diff = read_len - alignments[0][2]
+    return curr_diff
+
+
+def get_distance_from_GG(smurf2_results, gg_path):
+    gg_indices = {}
+    for i in range(1, 6):
+        gg_region_path = os.path.join(gg_path, "GreenGenes_region{}.fasta".format(i))
+        gg_indices[i] = SeqIO.index(gg_region_path, "fasta")
+
+    dist_from_gg = smurf2_results.apply(lambda r: get_distance_form_GG_single(gg_indices[int(r['Region'])], r['Sequence'], r['Reference_id']), axis=1)
+    return dist_from_gg
 
 
 if __name__ == "__main__":
@@ -247,18 +267,20 @@ if __name__ == "__main__":
         results_df.to_csv(zymo_regions_path)
     else:
         results_df = pd.read_csv(zymo_regions_path)
-
-    comparison_without_bacteria = os.path.join(s26_smurf2_results_dir, "comparison_without_bacteria55.csv")
-    if not os.path.exists(comparison_without_bacteria):
+    distances = []
+    comparison_without_bacteria = os.path.join(s26_smurf2_results_dir, "comparison_without_bacteria.csv")
+    if not os.path.exists(comparison_without_bacteria) or True:
         comparison_res = []
         for s26_smurf2_dir in s26_smurf2_dir_list:
             s26_smurf2_results = os.path.join(s26_smurf2_dir, "SMURF2_results.csv")
             result_comparisons_dist_path = os.path.join(s26_smurf2_dir, "results_comparison22.csv")
             if not os.path.exists(result_comparisons_dist_path):
                 s26_smurf2_df = pd.read_csv(s26_smurf2_results)
+                s26_smurf2_df = s26_smurf2_df.sort_values('Reference_id')
                 unique_s26_smurf2 = s26_smurf2_df.drop_duplicates(['Region', 'changed_reference_id'])
+                unique_s26_smurf2['dist_from_GG'] = get_distance_from_GG(unique_s26_smurf2, GG_database_path)
+                unique_s26_smurf2['dist_from_GG'] = unique_s26_smurf2.groupby('changed_reference_id')['dist_from_GG'].transform('sum')
                 unique_s26_smurf2['Sequence'] = unique_s26_smurf2['Sequence'].apply(lambda x: "".join(x[:145]))
-                unique_s26_smurf2 = unique_s26_smurf2.drop_duplicates(['Region', 'changed_reference_id'])
                 test = unique_s26_smurf2.merge(results_df, on=['Region', u'Sequence'])
                 unique_s26_smurf2['count'] = unique_s26_smurf2.groupby('changed_reference_id')['Region'].transform('count')
                 smurf2 = []
@@ -282,25 +304,48 @@ if __name__ == "__main__":
                 smurf2_df['matches'] = smurf2_df['matches']*(smurf2_df.bact != '')
                 smurf2_df.groupby('bact')['Prior'].sum()
                 distance_df = find_distance_between_results(test, results_df, unique_s26_smurf2)
-                distance_df = distance_df.merge(unique_s26_smurf2[['changed_reference_id', 'Priors']].drop_duplicates(), left_on='smurf2_id', right_on='changed_reference_id')
+                distance_df = distance_df.merge(unique_s26_smurf2[['changed_reference_id', 'Priors', 'dist_from_GG']].drop_duplicates(), left_on='smurf2_id', right_on='changed_reference_id')
                 distance_df = distance_df.sort_values('dist').drop_duplicates('smurf2_id', keep='last')
                 distance_df['identical_regions'] = distance_df['amplified_regions'] - distance_df['#diff_regions']
                 distance_df['bact'] = distance_df['zymo_id'].apply(lambda x: x.split('_16')[0])
 
 
-                distance_df.sort_values('Priors', ascending=False)[['dist', u'smurf2_id','Priors', u'zymo_id', 'amplified_regions', u'identical_regions', 'almost_equal_regions']]\
+                distance_df.sort_values('Priors', ascending=False)[['dist', 'dist_from_GG', u'smurf2_id','Priors', u'zymo_id', 'amplified_regions', u'identical_regions', 'almost_equal_regions']]\
                     .to_csv(result_comparisons_dist_path, index=False)
             else:
                 distance_df = pd.read_csv(result_comparisons_dist_path)
                 distance_df['bact'] = distance_df['zymo_id'].apply(lambda x: x.split('_16')[0])
+            distance_df['TEST_ID'] = s26_smurf2_dir.split('/')[-2]
+            distances.append(distance_df)
             summarized_results = distance_df[distance_df.almost_equal_regions != 0].groupby('bact')['Priors'].sum()
             print summarized_results
             comparison_res.append(summarized_results)
+
+        distances_df = pd.concat(distances)
+        print "distance_df[distance_df.almost_equal_regions != 0].Priors.sum() {}".format(distances_df[distances_df.almost_equal_regions != 0].Priors.sum() )
+        print len(distances_df[distances_df.almost_equal_regions != 0])
+        distances_df = distances_df[distances_df.almost_equal_regions != 0]
+        distances_df['bact_prior'] = distances_df.groupby(['bact', 'TEST_ID'])['Priors'].transform('sum')
+        distances_df['w_dist_GG_bact'] = distances_df['dist_from_GG']*distances_df['Priors'] / distances_df['bact_prior']
+        distances_df['w_dist_bact'] = distances_df['dist']*distances_df['Priors'] / distances_df['bact_prior']
+        distances_df['zymo_prior'] = distances_df.groupby(['zymo_id', 'TEST_ID'])['Priors'].transform('sum')
+        distances_df['w_dist_GG_zymo'] = distances_df['dist_from_GG'] * distances_df['Priors'] / distances_df['zymo_prior']
+        distances_df['w_dist_zymo'] = distances_df['dist'] * distances_df['Priors'] / distances_df['zymo_prior']
+        dist_test = distances_df.groupby(['bact', 'TEST_ID'])['w_dist_GG_bact', 'w_dist_bact', 'w_dist_GG_zymo', 'w_dist_zymo'].sum()
+        dist_test = dist_test.reset_index()
+
+        dist_test2 = distances_df.groupby(['zymo_id', 'TEST_ID'])['w_dist_GG_zymo', 'w_dist_zymo', 'Priors'].sum()
+        dist_test2.to_csv(os.path.join(s26_smurf2_results_dir, "dist_by_zymo_id_comparison.csv"))
+
+        dist_test = distances_df.groupby(['bact', 'TEST_ID'])['w_dist_GG_bact', 'w_dist_bact', 'Priors'].sum()
+        dist_test.to_csv(os.path.join(s26_smurf2_results_dir, "dist_by_bact_comparison.csv"))
 
         test = pd.DataFrame.from_dict(comparison_res)
         test.to_csv(comparison_without_bacteria)
     else:
         test = pd.read_csv(comparison_without_bacteria)
+
+
 
     test = test*100
     test['SMURF2_test'] = ['Full DB', 'without Pseudomonas_aeruginosa', 'without Listeria_monocytogenes',

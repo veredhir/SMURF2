@@ -409,30 +409,8 @@ def validate_ids(ids_path, zymo_seq_path, region_db_path, bacteria, read_len=145
     pd.DataFrame.from_dict(results).to_csv(ids_path + "_validation.csv")
 
 
-
-
-
-
-
-if __name__ == "__main__":
-    parser = OptionParser("Convert SMURF2 results format to SMURF results format")
-
-    # REQUIRED
-    group_reqd = OptionGroup(parser, "Required flags",
-                             "")
-    group_reqd.add_option("-o", "--output",
-                      type="string", default="/home/vered/EMIRGE/data/s26_mock",
-                      help="path to output new database location")
-    group_reqd.add_option("-b", "--bacteria",
-                          type="string", default="Lactobacillus_fermentum",
-                          help="bacteria to remove")
-
-    parser.add_option_group(group_reqd)
-    (options, args) = parser.parse_args(sys.argv[1:])
-
-    bacteria_to_remove = options.bacteria
-    output_path = options.output
-    db_ids_for_bacteria_path = os.path.join(output_path, "db_ids_for_bacteria_{}.csv".format(options.bacteria))
+def get_ids_by_zymo(output_path, bacteria_to_remove):
+    db_ids_for_bacteria_path = os.path.join(output_path, "db_ids_for_bacteria_{}.csv".format(bacteria_to_remove))
     print db_ids_for_bacteria_path
 
     zymo_regions_path = os.path.join(s26_results_path, 'zymo_regions.csv')
@@ -452,9 +430,84 @@ if __name__ == "__main__":
     validate_ids(ids_path_for_validation, zymo_regions_path, database_gg_regions, "Pseudomonas_aeruginosa")
 
     if not os.path.exists(db_ids_for_bacteria_path):
-        db_ids_for_bacterium = get_bacteria_ids_from_database(database_gg_regions, results_df, bacteria_to_remove, max_alignment_mismatch=5, read_len=145)
+        db_ids_for_bacterium = get_bacteria_ids_from_database(database_gg_regions, results_df, bacteria_to_remove,
+                                                              max_alignment_mismatch=5, read_len=145)
         # db_ids_for_bacterium = test_1_bacteria_ids_from_database(database_gg_regions, results_df, match_ids, max_alignment_mismatch=5, read_len=145)
         db_ids_for_bacterium.to_csv(db_ids_for_bacteria_path)
+    return db_ids_for_bacteria_path
+
+
+def get_ids_by_SMURF2_results(output_path, bacteria_to_remove, SMURF2_results_path_with_GG_dist, SMURF2_results_path, th=2):
+    """
+    Get GG ids only for sequences SMURF2 didn't modified at all.
+    :param output_path:
+    :param bacteria_to_remove:
+    :param SMURF2_results_path_with_GG_dist:
+    :param SMURF2_results_path:
+    :return:
+    """
+    db_ids_for_bacteria_path = os.path.join(output_path, "db_ids_smurf2_dist_from_gg_{}.csv".format(th))
+
+    SMURF2_results_dist = pd.read_csv(SMURF2_results_path_with_GG_dist)
+    SMURF2_results_dist['bact'] = SMURF2_results_dist['zymo_id'].apply(lambda x: x.split('_16S')[0])
+    full_results = pd.read_csv(SMURF2_results_path)
+    ids_map = full_results[['Unique_Reference_id', 'Reference_id']]
+    results_full = SMURF2_results_dist.merge(ids_map, right_on='Unique_Reference_id', left_on="smurf2_id")
+    results = results_full[results_full.dist_from_GG <= th]
+    results = results[['bact', 'Reference_id']]
+    results = results.rename(columns={'bact': 'bacteria_name',
+                                      'Reference_id': 'db_id'})
+    results = results.drop_duplicates('db_id')
+    results.to_csv(db_ids_for_bacteria_path)
+
+    full_results_unique =results_full.drop_duplicates('Reference_id')
+    print "{} --> #{}/{} GG ids".format(bacteria_to_remove,
+                                        len(results[results['bacteria_name']==bacteria_to_remove]),
+                                        len(full_results_unique[full_results_unique['bact']==bacteria_to_remove]))
+    return db_ids_for_bacteria_path
+
+
+if __name__ == "__main__":
+    parser = OptionParser("Convert SMURF2 results format to SMURF results format")
+
+    # REQUIRED
+    group_reqd = OptionGroup(parser, "Required flags",
+                             "")
+    group_reqd.add_option("-o", "--output",
+                      type="string", default="/home/vered/EMIRGE/data/s26_mock",
+                      help="path to output new database location")
+    group_reqd.add_option("-b", "--bacteria",
+                          type="string", default="Pseudomonas_aeruginosa",
+                          help="bacteria to remove")
+    group_reqd.add_option("-r", "--remove_by_zymo",
+                          action="store_true", default=False,
+                          help="use zymo sequence to remove bacteria (closest id from GG) or use the SMURF2 output (compared to GG with dist 0)")
+    group_reqd.add_option("-s", "--smurf2_results_path",
+                          type="string", default="/home/vered/EMIRGE/data/s26_mock/SMURF2_results.csv",
+                          help="path to SMURF2 results csv file")
+    group_reqd.add_option("-g", "--distance_from_gg",
+                          type="string", default="/home/vered/EMIRGE/data/s26_mock/results_comparison_with_GG_dist.csv",
+                          help="path to SMURF2 results with distance from GG")
+
+    parser.add_option_group(group_reqd)
+    (options, args) = parser.parse_args(sys.argv[1:])
+
+    bacteria_to_remove = options.bacteria
+    output_path = options.output
+
+    SMURF2_results_path_with_GG_dist = options.distance_from_gg
+    SMURF2_results_path = options.smurf2_results_path
+
+    if options.remove_by_zymo:
+        db_ids_for_bacteria_path = get_ids_by_zymo(output_path, bacteria_to_remove)
+    else:
+        db_ids_for_bacteria_path = get_ids_by_SMURF2_results(output_path,
+                                                             bacteria_to_remove,
+                                                             SMURF2_results_path_with_GG_dist,
+                                                             SMURF2_results_path)
+
+
+
     db_ids_for_bacterium = pd.read_csv(db_ids_for_bacteria_path)
     write_new_database(database_gg_regions, output_path, db_ids_for_bacterium, bacteria_to_remove)
 

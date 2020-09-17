@@ -49,6 +49,7 @@ import shutil
 from optparse import OptionParser, OptionGroup, SUPPRESS_HELP
 from time import ctime, time
 from smurf2_iteration import Smurf2Iteration
+from post_process import convert_to_smurf_format
 from smurf2_utills import *
 
 
@@ -105,7 +106,7 @@ class EM(object):
         for i in range(1, max_iter):
             subdirs.append(os.path.join(self.working_dir, "iter.%02d" % i))
             os.mkdir(subdirs[i])
-            logging.info("Create iteration {} working dir = {}".format(subdirs[i]))
+            logging.info("Create iteration {} working dir = {}".format(i, subdirs[i]))
             prev_iteration = curr_emirge_iteration
             curr_emirge_iteration = Smurf2Iteration(subdirs[i], prev_smurf2_iteration=prev_iteration)
 
@@ -114,14 +115,38 @@ class EM(object):
             if i > 2 and not self.is_debug:
                 shutil.rmtree(subdirs[i - 2])
 
-            is_last_iteration = (i == (max_iter-1))
-            if curr_emirge_iteration.do_iteration(is_last_iteration):
+            is_max_iteration = (i == (max_iter-1))
+            if curr_emirge_iteration.do_iteration(is_max_iteration):
                 # stable state
                 logging.info("DONE EMIRGE SMURF, iterations = #{}".format(i))
                 result_path = curr_emirge_iteration.paths.final_results
-                new_results_path = os.path.join(self.working_dir, "emirge_smurf_W{}S{}.csv".format(update_weight_using_the_reads, allow_split))
-                shutil.copyfile(result_path, new_results_path)
+                SMURF2_results_path = os.path.join(self.working_dir, "SMURF2_results.csv")
+                shutil.copyfile(result_path, SMURF2_results_path)
                 shutil.rmtree(subdirs[i])
+
+                # create file structure to support taxonomy script
+                smurf_format_path = os.path.join(self.working_dir, "SMURF2")
+                sample_name="sample"
+                os.mkdir(smurf_format_path)
+                smurf_format_sample_path = os.path.join(smurf_format_path, sample_name)
+                os.mkdir(smurf_format_sample_path)
+                shutil.copy2(fastq, smurf_format_sample_path)
+                shutil.copy2(fastq_reversed, smurf_format_sample_path)
+                smurf_format_res_path = os.path.join(smurf_format_sample_path, "resDir")
+                os.mkdir(smurf_format_res_path)
+
+                taxa_path = os.path.join(os.getcwd(), "Taxonomy_Package_for_SMURF2/matlab_code/Header_uni_smurf2.csv")
+
+                smurf2_mat_path = convert_to_smurf_format(SMURF2_results_path,
+                                                          fasta,
+                                                          self.working_dir,
+                                                          sample_name,
+                                                          curr_emirge_iteration.n_reads,
+                                                          number_of_region,
+                                                          taxa_path)
+
+                shutil.copy2(smurf2_mat_path, smurf_format_res_path)
+
                 break
 
 
