@@ -9,8 +9,8 @@ import os
 
 
 def compare_single_bacteria(smurf2_comparison_results_dir, smurf2_comparison_results_without_dir, bacteria_id):
-    smurf2_comparison_results = os.path.join(smurf2_comparison_results_dir, "results_comparison.csv")
-    smurf2_comparison_results_without = os.path.join(smurf2_comparison_results_without_dir, "results_comparison.csv")
+    smurf2_comparison_results = os.path.join(smurf2_comparison_results_dir, "results_comparison_with_GG_dist.csv")
+    smurf2_comparison_results_without = os.path.join(smurf2_comparison_results_without_dir, "results_comparison_with_GG_dist.csv")
 
     smurf2_comparison_results_seq = os.path.join(smurf2_comparison_results_dir, "SMURF2_results.csv")
     smurf2_comparison_results_without_seq = os.path.join(smurf2_comparison_results_without_dir, "SMURF2_results.csv")
@@ -78,6 +78,9 @@ def compare_single_bacteria(smurf2_comparison_results_dir, smurf2_comparison_res
         index='changed_reference_id', columns='Region', values='Sequence').reset_index().fillna('qqq')
     df_seq_without_pivot = df_seq_without.drop_duplicates(['changed_reference_id', 'Region']).pivot(
         index='changed_reference_id', columns='Region', values='Sequence').reset_index().fillna('qqq')
+    print ("Total amount of sequences full = {}, without = {}".
+           format(len(df_seq_full.drop_duplicates('changed_reference_id')),
+                  len(df_seq_without.drop_duplicates('changed_reference_id'))))
 
     for i in range(1, 6, 1):
         if i not in df_seq_full_pivot.columns:
@@ -99,11 +102,11 @@ def compare_single_bacteria(smurf2_comparison_results_dir, smurf2_comparison_res
 
 
 if __name__ == "__main__":
-    smurf2_comparison_results_dir = "/home/vered/EMIRGE/data/s26_mock"
+    smurf2_comparison_results_dir = "/home/vered/EMIRGE/data/s26_mock/dada2"
 
-    smurf2_comparison_results_without_dirs = ["/home/vered/EMIRGE/data/s26_mock/s26_without_Pseudomonas_aeruginosa",
-                                              "/home/vered/EMIRGE/data/s26_mock/s26_without_Listeria_monocytogenes",
-                                              "/home/vered/EMIRGE/data/s26_mock/s26_without_Lactobacillus_fermentum/"]
+    smurf2_comparison_results_without_dirs = ["/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Pseudomonas_aeruginosa",
+                                              "/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Listeria_monocytogenes",
+                                              "/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Lactobacillus_fermentum/"]
 
     bacteria_templates = ["Pseudomonas_aeruginosa_16S_{}", "Listeria_monocytogenes_16S_{}", 'Lactobacillus_fermentum_16S_{}']
 

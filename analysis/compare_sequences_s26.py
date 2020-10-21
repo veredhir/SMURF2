@@ -16,13 +16,13 @@ s26_results_path = "/home/vered/EMIRGE/data/s26_mock/ssrRNAs/"
 primers_path = "/home/vered/EMIRGE/data/primers.csv"
 GG_database_path = "/home/vered/EMIRGE/data/reference_db"
 
-s26_smurf2_results_dir = "/home/vered/EMIRGE/data/s26_mock/"
-s26_smurf2_results_dada2_dir = "/home/vered/EMIRGE/data/s26_mock/dada2"
-s26_smurf2_results1_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Pseudomonas_aeruginosa/"
-s26_smurf2_results2_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Listeria_monocytogenes/"
-s26_smurf2_results3_dir = "/home/vered/EMIRGE/data/s26_mock/s26_without_Lactobacillus_fermentum/"
+s26_smurf2_results_dir = "/home/vered/EMIRGE/data/s26_mock/dada2"
+s26_smurf2_results1_dir = "/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Pseudomonas_aeruginosa/"
+s26_smurf2_results2_dir = "/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Listeria_monocytogenes/"
+s26_smurf2_results3_dir = "/home/vered/EMIRGE/data/s26_mock/dada2/s26_without_Lactobacillus_fermentum/"
 
-s26_smurf2_dir_list = [s26_smurf2_results_dir, s26_smurf2_results_dada2_dir, s26_smurf2_results1_dir, s26_smurf2_results2_dir, s26_smurf2_results3_dir]
+s26_smurf2_dir_list = [s26_smurf2_results_dir, s26_smurf2_results1_dir, s26_smurf2_results2_dir, s26_smurf2_results3_dir]
+
 
 # s26_smurf2_results = os.path.join(s26_smurf2_results_dir, "SMURF2_results.csv")
 
@@ -273,7 +273,7 @@ if __name__ == "__main__":
         comparison_res = []
         for s26_smurf2_dir in s26_smurf2_dir_list:
             s26_smurf2_results = os.path.join(s26_smurf2_dir, "SMURF2_results.csv")
-            result_comparisons_dist_path = os.path.join(s26_smurf2_dir, "results_comparison22.csv")
+            result_comparisons_dist_path = os.path.join(s26_smurf2_dir, "results_comparison_with_GG_dist.csv")
             if not os.path.exists(result_comparisons_dist_path):
                 s26_smurf2_df = pd.read_csv(s26_smurf2_results)
                 s26_smurf2_df = s26_smurf2_df.sort_values('Reference_id')
@@ -350,7 +350,10 @@ if __name__ == "__main__":
     test = test*100
     test['SMURF2_test'] = ['Full DB', 'without Pseudomonas_aeruginosa', 'without Listeria_monocytogenes',
                            'without Lactobacillus_fermentum']
-    test['SMURF2_test'] = ['A', 'B', 'C', 'D']
+    test['SMURF2_test'] = ['Full Greengenes DB',
+                           'Greengenes without\nPseudomonas aeruginosa',
+                           'Greengenes without\nListeria monocytogenes',
+                           'Greengenes without\nLactobacillus fermentum']
     test.index = test.SMURF2_test
     test = test[[ u'Bacillus_subtilis', u'Enterococcus_faecalis', u'Escherichia_coli', u'Lactobacillus_fermentum',u'Listeria_monocytogenes', u'Pseudomonas_aeruginosa', u'Salmonella_enterica', u'Staphylococcus_aureus']]
 
@@ -359,17 +362,20 @@ if __name__ == "__main__":
     ax = plt.subplot(111)
     test.plot(kind='bar', stacked=True, ax=ax)
 
-    ax.set_title('SMURF2 detection of out of the database bacteria')
-    ax.set_ylabel("Bacterium frequency (%)")
-    ax.set_xlabel("Simulation")
+    # ax.set_title('SMURF2 detection of out of the database bacteria', fontsize=12)
+    ax.set_ylabel("Bacterium frequency (%)", fontsize=12)
+    ax.set_xlabel("Database used for reconstruction", fontsize=12, y=-0.3)
+
     # ax.legend(bbox_to_anchor=(1.01, 1.0), loc='upper left')
+    plt.xticks(rotation=0)
+
     # ax.set_xticks(rotation=0)
 
     # Shrink current axis's height by 10% on the bottom
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.2,
                      box.width, box.height * 0.8])
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
               fancybox=True, shadow=True, ncol=4)
     plt.show()
     # plt.savefig("sample.jpg")

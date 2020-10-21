@@ -474,19 +474,19 @@ if __name__ == "__main__":
     group_reqd = OptionGroup(parser, "Required flags",
                              "")
     group_reqd.add_option("-o", "--output",
-                      type="string", default="/home/vered/EMIRGE/data/s26_mock",
+                      type="string", default="/home/vered/EMIRGE/data/s26_mock/dada2",
                       help="path to output new database location")
     group_reqd.add_option("-b", "--bacteria",
-                          type="string", default="Pseudomonas_aeruginosa",
+                          type="string", default="Listeria_monocytogenes",
                           help="bacteria to remove")
     group_reqd.add_option("-r", "--remove_by_zymo",
                           action="store_true", default=False,
                           help="use zymo sequence to remove bacteria (closest id from GG) or use the SMURF2 output (compared to GG with dist 0)")
     group_reqd.add_option("-s", "--smurf2_results_path",
-                          type="string", default="/home/vered/EMIRGE/data/s26_mock/SMURF2_results.csv",
+                          type="string", default="/home/vered/EMIRGE/data/s26_mock/dada2/SMURF2_results.csv",
                           help="path to SMURF2 results csv file")
     group_reqd.add_option("-g", "--distance_from_gg",
-                          type="string", default="/home/vered/EMIRGE/data/s26_mock/results_comparison_with_GG_dist.csv",
+                          type="string", default="/home/vered/EMIRGE/data/s26_mock/dada2/results_comparison_with_GG_dist.csv",
                           help="path to SMURF2 results with distance from GG")
 
     parser.add_option_group(group_reqd)
