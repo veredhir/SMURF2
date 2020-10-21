@@ -137,6 +137,7 @@ class EM(object):
 
                 taxa_path = os.path.join(os.getcwd(), "Taxonomy_Package_for_SMURF2/matlab_code/Header_uni_smurf2.csv")
 
+                logging.info("post process: # reads = {}".format(curr_emirge_iteration.n_reads))
                 smurf2_mat_path = convert_to_smurf_format(SMURF2_results_path,
                                                           fasta,
                                                           self.working_dir,
