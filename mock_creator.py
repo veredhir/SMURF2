@@ -72,7 +72,7 @@ class MockBacterium(object):
         self.id = reference_id
         self.new_id = reference_id
         self.frequency = frequency
-        logging.info("freq = {}, total_amount_of_reads_per_region={}".format(frequency, total_amount_of_reads_per_region))
+        #logging.info("freq = {}, total_amount_of_reads_per_region={}".format(frequency, total_amount_of_reads_per_region))
         self.amount_of_reads_per_region = self.frequency*total_amount_of_reads_per_region/100
         self.read_length = read_length
         self.amplified_regions = []
@@ -153,7 +153,7 @@ class MockBacterium(object):
         reads = []
         for read in self.reads:
             reads += int(self.amount_of_reads_per_region)*[read]
-        logging.info("Added {} reads".format(len(reads)))
+        # logging.info("Added {} reads".format(len(reads)))
         return reads
 
     def get_all_paired_reads(self):

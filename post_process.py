@@ -4,14 +4,14 @@ import numpy as np
 from smurf2_headers import *
 from smurf2_utills import *
 import os
-import seaborn as sns
+# import seaborn as sns
 # import mat4py
 import scipy.io as sio
 
-import matplotlib
-matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
+# import matplotlib
+# matplotlib.use('Agg')
+#
+# import matplotlib.pyplot as plt
 import pandas as pd
 # from pandas.tools.plotting import table
 from optparse import OptionParser, OptionGroup
