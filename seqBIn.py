@@ -1,6 +1,7 @@
 
 from difflib import SequenceMatcher
 
+
 class Base(object):
     A = 'A'
     C = 'C'
@@ -8,14 +9,8 @@ class Base(object):
     T = 'T'
     N = 'N'
     all = [A, C, G, T]
-    ix = {A:0, C:1, G:2, T:3}
-    dtypes = {A:int, C:int, G:int, T:int}
-
-    def get_dict(self, base_list):
-        base_dict = {}
-        for i in range(0, len(self.all)):
-            base_dict.update({self.all[i]: base_list[i]})
-        return base_dict
+    ix = {A: 0, C: 1, G: 2, T: 3}
+    dtypes = {A: int, C: int, G: int, T: int}
 
 
 def sequence_to_bin(seq):
@@ -36,8 +31,7 @@ def sequence_to_bin(seq):
         curr_dict[base] = '1'
         bin_str = ''.join(map(lambda b: curr_dict[b], seq))
         bin_dict[base] = str(int(bin_str, 2))
-    res = [bin_dict[Base.A], bin_dict[Base.C], bin_dict[Base.G], bin_dict[Base.T]]
-    return res
+    return bin_dict
 
 
 def bin_to_sequence(bin_A, bin_C, bin_G, bin_T, seq_len):

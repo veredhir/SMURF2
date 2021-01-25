@@ -7,6 +7,14 @@ import logging
 import time
 import swifter
 
+"""
+23-01-2021
+Hiseq_4_S_RDB284_Melanoma
+Hiseq_4_S_RDB285_Melanoma
+Hiseq_8_S_BC96_Lung
+Ln_Batch5_S_Deborah3_S4_Melanoma
+"""
+
 
 def time_it(method):
     # logging.info('Start {}'.format(method.__name__))
@@ -94,6 +102,57 @@ def count_bits(df):
 def main():
 
     output_dir = '/home/vered/EMIRGE/data/real_data_fastq'
+
+    results_summary = "Vered_re_analysis_HardDecision_Freq_ResultsSummary_SPECIES_cutFreq0.txt"
+    species_cut_freq = "Vered_re_analysis_HardDecision_GroupsHeaders_SPECIES_cutFreq0.mat"
+    read_counts = "Vered_re_analysis_HardDecision_ReadCountStats.txt"
+
+    read_count = pd.read_csv(os.path.join(output_dir, read_counts), sep='\t')
+    match_read_cols = ["Number of reads mathced to DB{}".format(ix) for ix in range(1, 6)]
+    read_count['assigned_reads'] = read_count[match_read_cols].sum(axis=1)
+    read_count_cols_to_save = ['Sample name', u'Number of loaded reads', u'Number of long reads', u'Number of good reads', 'assigned_reads']
+    read_count[read_count_cols_to_save].to_csv(os.path.join(output_dir, "assigned_reads_tumers.csv"))
+
+    smurf2_taxonomy_Hiseq_4_S_RDB284 = pd.read_csv(os.path.join(output_dir,"taxonomy_smurf2_Hiseq_4_S_RDB284.txt"),
+                                                   sep='\t',
+                                                   skiprows=1).rename(columns={'workdir/': 'Hiseq_4_S_RDB284'})
+    smurf2_taxonomy_Hiseq_4_S_RDB285 = pd.read_csv(os.path.join(output_dir,"taxonomy_smurf2_Hiseq_4_S_RDB285.txt"),
+                                                   sep='\t',
+                                                   skiprows=1).rename(columns={'workdir/': 'Hiseq_4_S_RDB285'})
+
+    smurf_taxonomy = pd.read_csv(os.path.join(output_dir, results_summary),
+                                                   sep='\t',
+                                                   skiprows=1).rename(columns={'2015-11-17 - Hiseq-4/RDB284_CCTGTCAA':'Hiseq_4_S_RDB284',
+                                                                               '2015-11-17 - Hiseq-4/RDB285_CGACACTT':'Hiseq_4_S_RDB285'})
+
+    merge_cols = [u'domain', u'phylum', u'class', u'order', u'family', u'genus', u'species']
+
+    smurf2_taxonomy = smurf2_taxonomy_Hiseq_4_S_RDB284.merge(smurf2_taxonomy_Hiseq_4_S_RDB285, on=merge_cols, how='outer')
+    comparison = smurf2_taxonomy.merge(smurf_taxonomy[merge_cols + ['Hiseq_4_S_RDB284', 'Hiseq_4_S_RDB285']],
+                                       on=merge_cols,
+                                       how='outer',
+                                       suffixes=('_s2', '_s'))
+
+    comparison = comparison.fillna(0)
+
+    Hiseq_4_S_RDB284_comparison = comparison[merge_cols + ['Hiseq_4_S_RDB284_s2', 'Hiseq_4_S_RDB284_s']]
+    Hiseq_4_S_RDB284_comparison['is_exists'] = (Hiseq_4_S_RDB284_comparison['Hiseq_4_S_RDB284_s2']>0) | (Hiseq_4_S_RDB284_comparison['Hiseq_4_S_RDB284_s'] >0)
+    Hiseq_4_S_RDB284_comparison = Hiseq_4_S_RDB284_comparison[Hiseq_4_S_RDB284_comparison['is_exists']]
+    Hiseq_4_S_RDB284_comparison_family = Hiseq_4_S_RDB284_comparison.groupby([u'domain', u'phylum', u'class', u'order', u'family'])[['Hiseq_4_S_RDB284_s2', 'Hiseq_4_S_RDB284_s']].sum().reset_index()
+    Hiseq_4_S_RDB284_comparison_family.sort_values('Hiseq_4_S_RDB284_s2', ascending=False)\
+        .to_csv(os.path.join(output_dir, "Hiseq_4_S_RDB284_comparison_family.csv"))
+
+
+    Hiseq_4_S_RDB285_comparison = comparison[merge_cols + ['Hiseq_4_S_RDB285_s2', 'Hiseq_4_S_RDB285_s']]
+    Hiseq_4_S_RDB285_comparison['is_exists'] = (Hiseq_4_S_RDB285_comparison['Hiseq_4_S_RDB285_s2'] > 0) | (
+                Hiseq_4_S_RDB285_comparison['Hiseq_4_S_RDB285_s'] > 0)
+    Hiseq_4_S_RDB285_comparison = Hiseq_4_S_RDB285_comparison[Hiseq_4_S_RDB285_comparison['is_exists']]
+    Hiseq_4_S_RDB285_comparison_family = \
+        Hiseq_4_S_RDB285_comparison.groupby([u'domain', u'phylum', u'class', u'order', u'family'])[
+        ['Hiseq_4_S_RDB285_s2', 'Hiseq_4_S_RDB285_s']].sum().reset_index()
+    Hiseq_4_S_RDB285_comparison_family.sort_values('Hiseq_4_S_RDB285_s2', ascending=False)\
+        .to_csv(os.path.join(output_dir, "Hiseq_4_S_RDB285_comparison_family.csv"))
+
 
 
     smurf_taxonomy_results = "/home/vered/EMIRGE/data/real_data_fastq/tree_for_Vered.csv"

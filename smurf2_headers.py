@@ -46,9 +46,9 @@ class ReferenceFormat(object):
         for key in self.Bases.ix:
             self.ix[key] = self.Bases.ix.get(key) + 2
 
-    def get_ref_dict(self,title, region_ix, bases_list):
+    def get_ref_dict(self,title, region_ix, base_dict):
         ref_dict = {self.Original_Id: title, self.Region: region_ix}
-        ref_dict.update(self.Bases.get_dict(bases_list))
+        ref_dict.update(base_dict)
         return ref_dict
 
     @staticmethod
@@ -77,9 +77,9 @@ class ReadsFullDataFormat:
     def get_format(read_id, region, bases_list, quals):
         return [read_id, region, quals] + bases_list
 
-    def get_dict(self, read_id, region, bases_list, quals):
+    def get_dict(self, read_id, region, base_dict, quals):
         read_dict = {self.Id: read_id, self.Region: region, self.Quals: quals}
-        read_dict.update(self.Bases.get_dict(bases_list))
+        read_dict.update(base_dict)
         return read_dict
 
 

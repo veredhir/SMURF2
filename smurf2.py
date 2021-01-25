@@ -47,7 +47,6 @@ import os
 
 import shutil
 from optparse import OptionParser, OptionGroup, SUPPRESS_HELP
-from time import ctime, time
 from smurf2_iteration import Smurf2Iteration
 from post_process import convert_to_smurf_format
 from smurf2_utills import *
@@ -79,7 +78,8 @@ class EM(object):
                 min_minor_prob_for_split,
                 min_similar_bases_rate_for_merge,
                 max_priors_diff_for_stability_test,
-                allow_split):
+                allow_split,
+                taxa_path):
 
         first_subdir = os.path.join(self.working_dir, "iter.%02d" % 0)
 
@@ -118,7 +118,7 @@ class EM(object):
             is_max_iteration = (i == (max_iter-1))
             if curr_emirge_iteration.do_iteration(is_max_iteration):
                 # stable state
-                logging.info("DONE EMIRGE SMURF, iterations = #{}".format(i))
+                logging.info("DONE SMURF2, iterations = #{}".format(i))
                 result_path = curr_emirge_iteration.paths.final_results
                 SMURF2_results_path = os.path.join(self.working_dir, "SMURF2_results.csv")
                 shutil.copyfile(result_path, SMURF2_results_path)
@@ -135,7 +135,8 @@ class EM(object):
                 smurf_format_res_path = os.path.join(smurf_format_sample_path, "resDir")
                 os.mkdir(smurf_format_res_path)
 
-                taxa_path = os.path.join(os.getcwd(), "Taxonomy_Package_for_SMURF2/matlab_code/Header_uni_smurf2.csv")
+                if not taxa_path:
+                    taxa_path = os.path.join(os.getcwd(), "Taxonomy_Package_for_SMURF2/matlab_code/Header_uni_smurf2.csv")
 
                 logging.info("post process: # reads = {}".format(curr_emirge_iteration.n_reads))
                 smurf2_mat_path = convert_to_smurf_format(SMURF2_results_path,
@@ -235,6 +236,9 @@ def main(argv = sys.argv[1:]):
     group_opt.add_option("--split",
                          action="store_true", default=False,
                          help="Allow splitting sequences")
+    group_opt.add_option("--taxa",
+                         action="string", default=False,
+                         help="Store the taxa path")
 
     parser.add_option_group(group_opt)
 
@@ -315,7 +319,8 @@ def main(argv = sys.argv[1:]):
                min_minor_prob_for_split=options.min_minor_prob_for_split,
                min_similar_bases_rate_for_merge=options.join_threshold,
                max_priors_diff_for_stability_test=options.stability_threshold,
-               allow_split=options.split)
+               allow_split=options.split,
+               taxa_path=options.taxa)
 
     return
 
