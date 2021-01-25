@@ -4,10 +4,6 @@ import pandas as pd
 import os
 
 
-
-
-
-
 def compare_single_bacteria(smurf2_comparison_results_dir, smurf2_comparison_results_without_dir, bacteria_id):
     smurf2_comparison_results = os.path.join(smurf2_comparison_results_dir, "results_comparison_with_GG_dist.csv")
     smurf2_comparison_results_without = os.path.join(smurf2_comparison_results_without_dir, "results_comparison_with_GG_dist.csv")

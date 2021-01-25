@@ -98,10 +98,18 @@ class MockBacterium(object):
         changes_distribution = self.get_chagne_bases_distribution()
         for changes, sequence in zip(changes_distribution, sequences):
             sequence = self.change_sequence(sequence[:self.read_length] + sequence[-1 * self.read_length:], changes)
-            self.sequences.append(sequence[:self.read_length] + sequence[-1 * self.read_length:])
+            self.sequences.append(sequence)
             self.reads.append("".join(sequence[:self.read_length]))
             self.pair_reads.append(self.extract_paired_read_from_sequence(sequence))
-
+        for r in range(len(self.sequences)):
+            original_seq = self.original_sequences[r][:self.read_length] + self.original_sequences[r][-1 * self.read_length:]
+            if changes_distribution[r] != 0:
+                print "Change id {}:".format(self.id)
+                print "old region {}: {}".format(self.regions[r], original_seq)
+                print "new region {}, # changes {}: {}".format(self.regions[r], changes_distribution[r], self.sequences[r])
+            else:
+                print "\nUNCHANGED id {}:".format(self.id)
+                print "old region {}: {}".format(self.regions[r], original_seq)
 
     def get_chagne_bases_distribution(self):
         regions = len(self.regions)
@@ -134,11 +142,9 @@ class MockBacterium(object):
             while index in changed_indexes:
                 index = randint(0, 2 * self.read_length - 1)
             changed_indexes.append(index)
-            if index < len(sequence)-1:
-                sequence = sequence[:index] + self.change_base(sequence[index]) + sequence[index+1:]
-            else:
-                sequence = sequence[:index] + self.change_base(sequence[index])
-        # print "change indexes = {}".format(changed_indexes)
+            temp = list(sequence)
+            temp[index] = self.change_base(sequence[index])
+            sequence = "".join(temp)
         return sequence
 
     def change_base(self, old_base):

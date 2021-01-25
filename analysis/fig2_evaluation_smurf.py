@@ -76,7 +76,6 @@ def get_test_df(path, is_smurf2):
     return df
 
 
-
 def get_expected_df(path):
     """
     :param path: path to
@@ -724,6 +723,7 @@ def create_fig2(df, workdir, hue_order, exp_ix):
     save_fig(g, "exp-{}".format(exp_ix), workdir)
     return True
 
+
 def create_fig_smurf_vs_smurf2(df, workdir, hue_order):
     experiments_df_cols = ['exp-index', '# Reads', '# Changes per bacteria', '# Bacterias changed', 'score-type',
                            'value-type', 'value', 'bacteria', 'is_smurf2']
@@ -783,17 +783,8 @@ def main():
     try:
         experiments_df = pd.read_csv(os.path.join(working_dir, "experiments_df.csv"), index_col=None)
 
-        # experiments_df = experiments_df[experiments_df['bacteria'] != 'all']
-        # experiments_df = experiments_df[experiments_df['bacteria'] != 'mutated-source']
-
-        # bacteria_rename_dict = {}
-        # bacteria_rename_dict['random'] = 'unchanged'
-        # bacteria_rename_dict['mutated'] = 'changed'
-        # bacteria_rename_dict['mutated-source'] = 'unchanged-origin'
-        #
         hue_order = ['all']  # , 'unchanged-origin']
-        #
-        # experiments_df['bacteria'] = experiments_df['bacteria'].apply(lambda x: bacteria_rename_dict[x])
+
         create_fig_smurf_vs_smurf2(experiments_df, working_dir, hue_order)
         create_fig2(experiments_df, working_dir, hue_order, 0)
         create_fig2(experiments_df, working_dir, hue_order, 1)
@@ -833,33 +824,6 @@ def main():
                                         calc_recall(contain_table, expected_priors), experiments_df_cols)
 
                     experiments_df = experiments_df.append(df)
-
-                    # contain_table, similarity_table, actual_priors, expected_priors = calc_changed_bacteria_table(expected_path, actual_path)
-                    # df = experiment.add_bact_change_data(calc_precision(similarity_table, actual_priors),
-                    #                                 calc_precision(contain_table, actual_priors),
-                    #                                 calc_recall(similarity_table, expected_priors),
-                    #                                 calc_recall(contain_table, expected_priors), experiments_df_cols)
-                    # experiments_df = experiments_df.append(df)
-
-                    # contain_table, similarity_table, actual_priors, expected_priors = calc_unchagned_bacteria_table(expected_path, actual_path)
-                    #
-                    # df = experiment.add_bact_unchange_data(calc_precision(similarity_table, actual_priors),
-                    #                                   calc_precision(contain_table, actual_priors),
-                    #                                   calc_recall(similarity_table, expected_priors),
-                    #                                   calc_recall(contain_table, expected_priors), experiments_df_cols)
-                    # experiments_df = experiments_df.append(df)
-
-                    # contain_table, similarity_table, actual_priors, expected_priors = calc_chagned_source_bacteria_table(expected_path,
-                    #                                                                                               actual_path)
-                    # if contain_table is None:
-                    #     print("mutated source - contain table is None")
-                    # df = experiment.add_bact_change_source_data(calc_precision(similarity_table, actual_priors),
-                    #                                      calc_precision(contain_table, actual_priors),
-                    #                                      calc_recall(similarity_table, expected_priors),
-                    #                                      calc_recall(contain_table, expected_priors), experiments_df_cols)
-                    #
-                    # experiments_df = experiments_df.append(df)
-
 
                 except Exception as ex:
                     print("Failed add data for test = {}, ex = {}".format(test_dir, ex))

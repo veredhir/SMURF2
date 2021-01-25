@@ -32,6 +32,7 @@ ORIGIN = 'Intra DB - origin'
 VALIDATION_THRESHOLD_THRESHOLD = 0.00001
 EXPECTED_RES_FILE_NAME = "expected_res.csv"
 ACTUAL_RES_FILE_NAME = "emirge_smurf_WFalseSTrue.csv"
+ACTUAL_RES_FILE_NAME_NEW = "SMURF2_results.csv"
 
 class Header():
     ref_id = 'ref'
@@ -137,7 +138,7 @@ def calc_changed_bacteria_table(expected_path, actual_path):
     score_table_contain, score_table_eqaul, actual_priors, expected_priors =  calc_table(expected_df, actual_df)
     sum_priors = sum(actual_priors)
     actual_priors = [prior/sum_priors for prior in actual_priors]
-    sum_priors = sum(expected_priors)
+    sum_priors = expected_df.drop_duplicates(Header.ref_id)[Header.prior].sum()
     expected_priors = [prior / sum_priors for prior in expected_priors]
     return score_table_contain, score_table_eqaul, actual_priors, expected_priors
 
@@ -148,7 +149,7 @@ def calc_unchagned_bacteria_table(expected_path, actual_path):
     score_table_contain, score_table_eqaul, actual_priors, expected_priors = calc_table(expected_df, actual_df)
     sum_priors = sum(actual_priors)
     actual_priors = [prior / sum_priors for prior in actual_priors]
-    sum_priors = sum(expected_priors)
+    sum_priors = expected_df.drop_duplicates(Header.ref_id)[Header.prior].sum()
     expected_priors = [prior / sum_priors for prior in expected_priors]
     return score_table_contain, score_table_eqaul, actual_priors, expected_priors
 
@@ -161,9 +162,10 @@ def calc_chagned_source_bacteria_table(expected_path, actual_path):
     score_table_contain, score_table_eqaul, actual_priors, expected_priors = calc_table(expected_df, actual_df)
     sum_priors = sum(actual_priors)
     actual_priors = [prior / sum_priors for prior in actual_priors]
-    sum_priors = sum(expected_priors)
+    sum_priors = expected_df.drop_duplicates(Header.ref_id)[Header.prior].sum()
     expected_priors = [prior / sum_priors for prior in expected_priors]
     return score_table_contain, score_table_eqaul, actual_priors, expected_priors
+
 
 def calc_table(expected_df, actual_df):
     merged = expected_df.merge(actual_df, on=[Header.region, Header.sequence], how="inner", suffixes=('_e', '_a'))
@@ -175,7 +177,7 @@ def calc_table(expected_df, actual_df):
                 merged[[Header.ref_id + "_e", Header.ref_id + '_a', Header.weight + '_e', Header.weight + '_a']],
                 on=[Header.ref_id + "_e", Header.ref_id + '_a'],
                 how="inner")
-        common_regions_df['is_contains'] = (common_regions_df[Header.weight + '_a'] == common_regions_df[Header.region])
+        common_regions_df['is_contains'] = True #(common_regions_df[Header.weight + '_a'] >= common_regions_df[Header.region])
         common_regions_df['is_equals'] = (common_regions_df[Header.weight + '_e'] == common_regions_df[Header.region])
     else:
         # print ("\n\n the original has no match!")
@@ -307,7 +309,7 @@ class SingleExperimentData(object):
 
     def add_bact_change_source_data(self, precision_similarity, precision_contain, recall_similarity, recall_contain, df_cols):
         # print('add mutated-source!!!! - index = {}, precision = {}, recall = {}'.format(self.index, precision_contain, recall_contain))
-        return self.get_df(df_cols, FROM_DB, precision_similarity, precision_contain, recall_similarity,
+        return self.get_df(df_cols, ORIGIN, precision_similarity, precision_contain, recall_similarity,
                            recall_contain)
 
     def add_bact_unchange_data(self, precision_similarity, precision_contain, recall_similarity, recall_contain, df_cols):
@@ -315,7 +317,7 @@ class SingleExperimentData(object):
         self.precision_similarity_unchanged.append(precision_similarity)
         self.recall_contains_unchanged.append(recall_contain)
         self.recall_similarity_unchanged.append(recall_similarity)
-        return self.get_df(df_cols, ORIGIN, precision_similarity, precision_contain, recall_similarity, recall_contain)
+        return self.get_df(df_cols, FROM_DB, precision_similarity, precision_contain, recall_similarity, recall_contain)
 
     def get_df(self, cols, bacteira_type, precisions_similarity, recall_similarity, precisions_contains, recall_contains):
         df_data = [[self.index, self.mix_size_str, self.changed_bases, self.changed_bacterias, SIMILAR, RECALL, recall_similarity,
@@ -399,22 +401,42 @@ def create_fig_3_unify(df, workdir, hue_order, type):
     df_bases = df[df['exp-index'].isin(bases_experiments) ]
     reads_experiments = [4, 8, 9]
     df_reads = df[df['exp-index'].isin(reads_experiments)]
-    bact_experiments = [1, 4]
+    bact_experiments = [1, 4, 10, 11]
     df_bact = df[df['exp-index'].isin(bact_experiments)]
 
     f, axes = plt.subplots(1, 3,figsize=(15,7.5))
+    for ax in axes:
+        ax.set(ylim=(0, 1.1))
 
     g = sns.barplot(y=type, x="# Changes per bacterium", data=df_bases, hue='bacteria', ax=axes[0], palette=sns.color_palette('colorblind'), hue_order=hue_order)
     g.legend_.remove()
-    g = sns.barplot(y=type, x="# Reads", data=df_reads,hue='bacteria', order = ['50k', '100k', '500k'], ax=axes[1], palette=sns.color_palette('colorblind'), hue_order=hue_order)
+    # Define some hatches
+    hatch = '\\'
+    # Loop over the bars
+    for i, thisbar in enumerate(g.patches):
+        # Set stripes on the common settings bar:
+        if i in [1, 6]:
+            thisbar.set_hatch(hatch)
+    g = sns.barplot(y=type, x="# Reads", data=df_reads, hue='bacteria', order = ['50k', '100k', '500k'], ax=axes[1], palette=sns.color_palette('colorblind'), hue_order=hue_order)
     g.legend_.remove()
-    g = sns.barplot(y=type, x="# Bacteria changed", data=df_bact, hue='bacteria', ax=axes[2], palette=sns.color_palette('colorblind'), hue_order=hue_order)
-    g.legend(bbox_to_anchor=(0.8, 1))
+    # Loop over the bars
+    for i, thisbar in enumerate(g.patches):
+        # Set stripes on the common settings bar:
+        if i in [2, 5]:
+            thisbar.set_hatch(hatch)
+    df_bact.rename(columns={"# Bacteria changed": "# Modified bacteria"}, inplace=True)
+    g = sns.barplot(y=type, x="# Modified bacteria", data=df_bact, hue='bacteria', ax=axes[2], palette=sns.color_palette('colorblind'), hue_order=hue_order)
+    g.legend(bbox_to_anchor=(1, 1))
+    # Loop over the bars
+    for i, thisbar in enumerate(g.patches):
+        # Set stripes on the common settings bar:
+        if i in [1, 5]:
+            thisbar.set_hatch(hatch)
 
     save_fig_unify(f, axes, type, workdir)
 
     data_path=os.path.join(workdir, "statistics_{}_xx.csv".format(type))
-    for col, df in [("# Changes per bacterium", df_bases), ("# Bacteria changed", df_bact), ("# Reads", df_reads)]:
+    for col, df in [("# Changes per bacterium", df_bases), ("# Modified bacteria", df_bact), ("# Reads", df_reads)]:
         df.groupby([col, 'bacteria'])[type].describe().to_csv(data_path.replace('xx', col.replace(' ', '_')))
 
 
@@ -473,15 +495,16 @@ def main():
         print experiments_df.columns
         experiments_df = experiments_df[experiments_df['bacteria'] != 'all']
 
-        hue_rename = {'random': FROM_DB,
-                      'mutated': MODIFIED,
-                      'mutated-source': ORIGIN}
+        # old - not needed any more
+        # hue_rename = {'Intra DB - origin': FROM_DB,
+        #               MODIFIED: MODIFIED,
+        #               'Intra DB': ORIGIN}
+        #
+        # score_rename = {'contain': CONTAIN,
+        #                 'similar': SIMILAR}
 
-        score_rename = {'contain': CONTAIN,
-                        'similar': SIMILAR}
-
-        experiments_df['bacteria'] = experiments_df['bacteria'].apply(lambda b : hue_rename[b])
-        experiments_df['score-type'] = experiments_df['score-type'].apply(lambda s: score_rename[s])
+        # experiments_df['bacteria'] = experiments_df['bacteria'].apply(lambda b : hue_rename[b])
+        # experiments_df['score-type'] = experiments_df['score-type'].apply(lambda s: score_rename[s])
 
         if 'mutated' in working_dir:
             hue_order = [FROM_DB, MODIFIED, ORIGIN]
@@ -508,6 +531,8 @@ def main():
         experiments[7] = SingleExperimentData(working_dir, 7, 3, 100, 500000)
         experiments[8] = SingleExperimentData(working_dir, 8, 3, 10, 100000)
         experiments[9] = SingleExperimentData(working_dir, 9, 3, 10, 50000)
+        experiments[10] = SingleExperimentData(working_dir, 10, 10, 10, 500000)
+        experiments[11] = SingleExperimentData(working_dir, 11, 20, 10, 500000)
 
         experiments_df_cols = ['exp-index', '# Reads', '# Changes per bacterium', '# Bacteria changed', 'score-type',
                                'value-type', 'value', 'bacteria']
@@ -520,6 +545,10 @@ def main():
                     test_path = os.path.join(experiment.results_path, test_dir)
                     actual_path = os.path.join(test_path, ACTUAL_RES_FILE_NAME)
                     expected_path = os.path.join(test_path, EXPECTED_RES_FILE_NAME)
+                    if not os.path.isfile(actual_path):
+                        actual_path = os.path.join(test_path, ACTUAL_RES_FILE_NAME_NEW)
+                        if not os.path.isfile(actual_path):
+                            continue
 
                     contain_table, similarity_table, actual_priors, expected_priors = calc_full_table(expected_path, actual_path)
                     df = experiment.add_data(calc_precision(similarity_table, actual_priors),
@@ -548,12 +577,13 @@ def main():
                                                                                                                   actual_path)
                     if contain_table is None:
                         print("mutated source - contain table is None")
-                    df = experiment.add_bact_change_source_data(calc_precision(similarity_table, actual_priors),
-                                                         calc_precision(contain_table, actual_priors),
-                                                         calc_recall(similarity_table, expected_priors),
-                                                         calc_recall(contain_table, expected_priors), experiments_df_cols)
+                    else:
+                        df = experiment.add_bact_change_source_data(calc_precision(similarity_table, actual_priors),
+                                                             calc_precision(contain_table, actual_priors),
+                                                             calc_recall(similarity_table, expected_priors),
+                                                             calc_recall(contain_table, expected_priors), experiments_df_cols)
 
-                    experiments_df = experiments_df.append(df)
+                        experiments_df = experiments_df.append(df)
 
 
                 except Exception as ex:
@@ -562,13 +592,73 @@ def main():
         experiments_df.to_csv(os.path.join(working_dir, "experiments_df.csv"), index=False)
 
 
+def test():
+    working_dir=""
+    experiment = SingleExperimentData(working_dir, 10, 10, 10, 500000)
+
+    experiments_df_cols = ['exp-index', '# Reads', '# Changes per bacterium', '# Bacteria changed', 'score-type',
+                           'value-type', 'value', 'bacteria']
+    experiments_df = pd.DataFrame(columns=experiments_df_cols)
+    # experiment.results_path
+
+    try:
+        test_path = "/home/vered/EMIRGE/data/test_4"
+        actual_path = os.path.join(test_path, ACTUAL_RES_FILE_NAME)
+        expected_path = os.path.join(test_path, EXPECTED_RES_FILE_NAME)
+        if not os.path.isfile(actual_path):
+            actual_path = os.path.join(test_path, ACTUAL_RES_FILE_NAME_NEW)
+            if not os.path.isfile(actual_path):
+                return
+
+        contain_table, similarity_table, actual_priors, expected_priors = calc_full_table(expected_path,
+                                                                                          actual_path)
+        df = experiment.add_data(0,
+                                 0,
+                                 calc_precision(contain_table, actual_priors),
+                                 calc_recall(contain_table, expected_priors), experiments_df_cols)
+
+        experiments_df = experiments_df.append(df)
+
+        contain_table, similarity_table, actual_priors, expected_priors = calc_changed_bacteria_table(
+            expected_path, actual_path)
+        df = experiment.add_bact_change_data(0,
+                                             calc_precision(contain_table, actual_priors),
+                                             0,
+                                             calc_recall(contain_table, expected_priors), experiments_df_cols)
+        experiments_df = experiments_df.append(df)
+
+        contain_table, similarity_table, actual_priors, expected_priors = calc_unchagned_bacteria_table(
+            expected_path, actual_path)
+
+        df = experiment.add_bact_unchange_data(calc_precision(similarity_table, actual_priors),
+                                               calc_precision(contain_table, actual_priors),
+                                               calc_recall(similarity_table, expected_priors),
+                                               calc_recall(contain_table, expected_priors), experiments_df_cols)
+        experiments_df = experiments_df.append(df)
+
+        contain_table, similarity_table, actual_priors, expected_priors = calc_chagned_source_bacteria_table(
+            expected_path,
+            actual_path)
+        if contain_table is None:
+            print("mutated source - contain table is None")
+        df = experiment.add_bact_change_source_data(calc_precision(similarity_table, actual_priors),
+                                                    calc_precision(contain_table, actual_priors),
+                                                    calc_recall(similarity_table, expected_priors),
+                                                    calc_recall(contain_table, expected_priors),
+                                                    experiments_df_cols)
+
+        experiments_df = experiments_df.append(df)
 
 
+    except Exception as ex:
+        print("Failed add data for test ")
 
+    # experiments_df.to_csv(os.path.join(working_dir, "experiments_df.csv"), index=False)
 
 
 if __name__ == "__main__":
     main()
+    # test()
 
 
 

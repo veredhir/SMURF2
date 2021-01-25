@@ -253,8 +253,30 @@ def get_distance_from_GG(smurf2_results, gg_path):
     dist_from_gg = smurf2_results.apply(lambda r: get_distance_form_GG_single(gg_indices[int(r['Region'])], r['Sequence'], r['Reference_id']), axis=1)
     return dist_from_gg
 
+def get_SMURF2_reconstruction(file_path='/home/vered/EMIRGE/data/s26_mock/s26_taxonomy_smurf2_22_01_21.txt'): #dada2/taxonomy_smurf2.csv
+    smurf2 = pd.read_csv(file_path, skiprows=1, sep='\t')
+    # smurf2 = smurf2[[u'domain', u'phylum', u'class', u'order', u'family', u'genus',  u'species', u'SIGMA/RS26_S26']]
+    curr_data_col = 's26_mock_dada2/'
+    data_col = 'workdir/'
+    smurf2.rename(columns={curr_data_col:data_col}, inplace=True)
+    smurf2 = smurf2[smurf2[data_col] > 0.001]
+    return smurf2.groupby('genus')[data_col].sum().reset_index()
+
+
+def test_SMURF_reconstruction(file_path='/home/vered/EMIRGE/data/s26_mock/SMURF_Reconstruction.csv'):
+    smurf = pd.read_csv(file_path, skiprows=1)
+    smurf = smurf[[u'domain', u'phylum', u'class', u'order', u'family', u'genus',  u'species', u'SIGMA/RS26_S26']]
+    # smurf = smurf[smurf['SIGMA/RS26_S26'] > 0.002]
+    return smurf.groupby('genus')['SIGMA/RS26_S26'].sum().reset_index()
+
+
 
 if __name__ == "__main__":
+    smurf2 = get_SMURF2_reconstruction()
+    smurf = test_SMURF_reconstruction()
+    test = smurf.merge(smurf2)
+    test['workdir/'] - test['SIGMA/RS26_S26']
+
     zymo_regions_path = os.path.join(s26_results_path, 'zymo_regions.csv')
     if not os.path.exists(zymo_regions_path):
         primers = Primer()
@@ -377,10 +399,67 @@ if __name__ == "__main__":
                      box.width, box.height * 0.8])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
               fancybox=True, shadow=True, ncol=4)
-    plt.show()
+    # plt.show()
     # plt.savefig("sample.jpg")
 
     print len(test)
     a=3
+
+    figure_4s_data = test.loc['Full Greengenes DB']
+    figure_4s_data = pd.DataFrame.from_records([figure_4s_data], index=['SMURF2'])
+
+    # from smurf merck report (PDF file) + SMURF Reconstruction sent by Noam (06-01-2021), sample 0.00025
+    smurf_results = {u'Bacillus_subtilis': 26.1,
+                     u'Enterococcus_faecalis': 7.6,
+                     u'Escherichia_coli': 5.3,
+                     u'Lactobacillus_fermentum': 9.2,
+                     u'Listeria_monocytogenes': 9.3,
+                     u'Pseudomonas_aeruginosa': 5.3,
+                     u'Salmonella_enterica': 4.5 + 24.7,
+                     u'Staphylococcus_aureus': 7.2}
+    smurf_df = pd.DataFrame.from_records([smurf_results], index=['SMURF'])
+    figure_4s_data  = figure_4s_data.append(smurf_df)
+
+    # from smurf merck report (PDF file)
+    theoretical_results = {u'Bacillus_subtilis': 15.7,
+                           u'Enterococcus_faecalis': 10.4,
+                           u'Escherichia_coli': 10,
+                           u'Lactobacillus_fermentum': 18.8,
+                           u'Listeria_monocytogenes': 15.9,
+                           u'Pseudomonas_aeruginosa': 4.6,
+                           u'Salmonella_enterica': 11.3,
+                           u'Staphylococcus_aureus': 13.3}
+    theoretical_df = pd.DataFrame.from_records([theoretical_results], index=['Theoretical'])
+    figure_4s_data = figure_4s_data.append(theoretical_df)
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    g = figure_4s_data.plot(kind='bar', stacked=True, ax=ax)
+
+    # ax.set_title('SMURF2 detection of out of the database bacteria', fontsize=12)
+    ax.set_ylabel("Bacterium frequency (%)", fontsize=12)
+    ax.set_xlabel("")
+
+    # ax.legend(bbox_to_anchor=(1.01, 1.0), loc='upper left')
+    plt.xticks(rotation=0)
+
+    # ax.set_xticks(rotation=0)
+
+    # Shrink current axis's height by 10% on the bottom
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.2,
+                     box.width, box.height * 0.8])
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
+              fancybox=True, shadow=True, ncol=4)
+    plt.show()
+    fig.savefig(os.path.join(s26_smurf2_results_dir, "Fig4S.png"))
+    fig.savefig(os.path.join(s26_smurf2_results_dir, "Fig4S.pdf"))
+    print(figure_4s_data)
+
+    #todo add the following rows to the test dataframe and save new figure
+
+
+
+
+
 
 
